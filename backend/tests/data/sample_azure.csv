@@ -1,0 +1,3 @@
+﻿name,DB_Type,Resource group,Subscription,Location,State,dbVersion,StorageGB,AvailabilityZone,AutoGrow,AutoIoScaling,IOPS,FQDN,HighAvailabilityState,Replica,BackupRetentionDays,GeoRedundantBackup
+perfdb1,MySQL,performance_engineering,TDH-Training-CloudEngineering,East US,Ready,8.0.21,20,3,Enabled,Enabled,360,perfdb1.mysql.database.azure.com,NotEnabled,None,7,Disabled
+pqsl-dvo-mt-eu2-vault,PostgreSQL,rg-dvo-mt-eu2-01,TDH-Non-Prod-NA,East US 2,Ready,14,32,3,Disabled,,120,pqsl-dvo-mt-eu2-vault.postgres.database.azure.com,NotEnabled,Primary,21,Disabled

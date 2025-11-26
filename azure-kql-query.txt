@@ -1,0 +1,36 @@
+//Purpose
+//Retrieve inventory and configuration details of:
+//Azure Database for PostgreSQL Flex server
+//Azure Database for MySQL Flex server
+//Azure Arc-enabled SQL Server instances 
+// Click the "Run query" command above to execute the query and see results.
+resources
+| where type =~ "microsoft.dbforpostgresql/flexibleservers"
+   or type =~ "microsoft.dbformysql/flexibleservers"
+   or type =~ "microsoft.azurearcdata/sqlserverinstances"
+| extend DB_Type = case(
+    type has "dbforpostgresql", "PostgreSQL",
+    type has "dbformysql", "MySQL",
+    type has "sqlserverinstances", "SQL Server (Arc)",
+    "Other"
+)
+| project
+    name,
+    DB_Type,
+    resourceGroup,
+    subscriptionId,
+    location,
+    State = tostring(properties.state),
+    dbVersion = tostring(properties.version),
+    StorageGB = tostring(properties.storage.storageSizeGB),
+    AvailabilityZone = tostring(properties.availabilityZone),
+    AutoGrow = tostring(properties.storage.autoGrow),
+    AutoIoScaling = tostring(properties.storage.autoIoScaling),
+    IOPS = tostring(properties.storage.iops),
+    FQDN = tostring(properties.fullyQualifiedDomainName),
+    HighAvailabilityState = tostring(properties.highAvailability.state),
+    HighAvailabilityMode = tostring(properties.highAvailability.mode), // <-- HA Zone (sameZone / zoneRedundant)
+    Replica = tostring(properties.replicationRole),
+    BackupRetentionDays = tostring(properties.backup.backupRetentionDays),
+    GeoRedundantBackup = tostring(properties.backup.geoRedundantBackup),
+    tenantId

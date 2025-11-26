@@ -1,0 +1,14 @@
+[project]
+name = "cloud-db-inventory"
+version = "0.1.0"
+requires-python = ">=3.10,<3.13"
+description = "Cloud DB inventory tracker (FastAPI + React)"
+readme = "README.md"
+license = {text = "Proprietary"}
+
+[tool.pip]
+# Informative only; pip reads requires-python above.
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["backend/app"]
