@@ -27,6 +27,64 @@ def get_db():
 
 
 def init_db():
-    """Initialize database tables."""
+    """Initialize database tables and ensure new columns exist."""
     Base.metadata.create_all(bind=engine)
+    # Ensure newly added nullable columns exist on existing deployments
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text(
+                """
+                ALTER TABLE database_records
+                ADD COLUMN IF NOT EXISTS availability_zone VARCHAR NULL;
+                """
+            ))
+            conn.execute(text(
+                """
+                ALTER TABLE database_records
+                ADD COLUMN IF NOT EXISTS auto_scaling VARCHAR NULL;
+                """
+            ))
+            conn.execute(text(
+                """
+                ALTER TABLE database_records
+                ADD COLUMN IF NOT EXISTS iops VARCHAR NULL;
+                """
+            ))
+            conn.execute(text(
+                """
+                ALTER TABLE database_records
+                ADD COLUMN IF NOT EXISTS high_availability_state VARCHAR NULL;
+                """
+            ))
+            conn.execute(text(
+                """
+                ALTER TABLE database_records
+                ADD COLUMN IF NOT EXISTS replica VARCHAR NULL;
+                """
+            ))
+            conn.execute(text(
+                """
+                ALTER TABLE database_records
+                ADD COLUMN IF NOT EXISTS backup_retention_days VARCHAR NULL;
+                """
+            ))
+            conn.execute(text(
+                """
+                ALTER TABLE database_records
+                ADD COLUMN IF NOT EXISTS geo_redundant_backup VARCHAR NULL;
+                """
+            ))
+    except Exception as e:
+        # Log and continue; table might not exist yet or permissions differ
+        print(f"Schema migration check failed: {e}")
+    
+    # Initialize tenant mappings
+    try:
+        from .tenant_mapping import init_tenant_mappings
+        db = SessionLocal()
+        init_tenant_mappings(db)
+        db.close()
+    except Exception as e:
+        print(f"Tenant mapping initialization failed: {e}")
 

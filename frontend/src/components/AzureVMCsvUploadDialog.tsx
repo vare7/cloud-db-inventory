@@ -5,41 +5,34 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  MenuItem,
   Stack,
-  TextField,
   Typography,
   Alert,
   Divider,
-  Chip
+  Chip,
+  CircularProgress
 } from "@mui/material";
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { useState } from "react";
-import { Provider } from "../types";
-import { importCsv } from "../api/client";
+import axios from "axios";
 
 interface ImportResult {
   message: string;
-  created: number;
+  imported: number;
   skipped: number;
-  duplicates: number;
-  deleted: number;
+  purged: number;
   skipped_details?: any[];
-  duplicates_details?: any[];
-  deleted_details?: any[];
 }
 
-interface CsvUploadDialogProps {
+interface AzureVMCsvUploadDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export const CsvUploadDialog = ({ open, onClose, onSuccess }: CsvUploadDialogProps) => {
-  const [provider, setProvider] = useState<Provider>("AWS");
+export const AzureVMCsvUploadDialog = ({ open, onClose, onSuccess }: AzureVMCsvUploadDialogProps) => {
   const [file, setFile] = useState<File | null>(null);
-  const [syncMode, setSyncMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -67,11 +60,22 @@ export const CsvUploadDialog = ({ open, onClose, onSuccess }: CsvUploadDialogPro
     setError(null);
 
     try {
-      const result = await importCsv(file, provider, syncMode);
-      setImportResult(result);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await axios.post(
+        "http://localhost:8000/api/azure-vms/import-csv",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      setImportResult(response.data);
       setShowResult(true);
       setFile(null);
-      setSyncMode(false);
       onSuccess();
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to upload CSV file");
@@ -97,29 +101,18 @@ export const CsvUploadDialog = ({ open, onClose, onSuccess }: CsvUploadDialogPro
     <>
       {/* Upload Dialog */}
       <Dialog open={open && !showResult} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>Import from CSV</DialogTitle>
+        <DialogTitle>Import Azure VMs from CSV</DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
-            <TextField
-              select
-              label="Provider"
-              value={provider}
-              onChange={(e) => setProvider(e.target.value as Provider)}
-              fullWidth
-            >
-              <MenuItem value="AWS">AWS</MenuItem>
-              <MenuItem value="Azure">Azure</MenuItem>
-            </TextField>
-
             <Box>
               <input
                 accept=".csv"
                 style={{ display: "none" }}
-                id="csv-file-input"
+                id="azure-vm-csv-file-input"
                 type="file"
                 onChange={handleFileSelect}
               />
-              <label htmlFor="csv-file-input">
+              <label htmlFor="azure-vm-csv-file-input">
                 <Button
                   variant="outlined"
                   component="span"
@@ -141,30 +134,29 @@ export const CsvUploadDialog = ({ open, onClose, onSuccess }: CsvUploadDialogPro
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
                 <strong>CSV Format:</strong>
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                The CSV should include columns for: service, engine, region, endpoint, storage_gb,
-                status, subscription, tags, version, and azure_tenant (for Azure). Column names are
-                case-insensitive and flexible (e.g., "Service", "service_name", "DB Service").
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                Required columns (case-insensitive):
               </Typography>
-            </Box>
-
-            <Box sx={{ bgcolor: "action.hover", p: 2, borderRadius: 1 }}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <input
-                  type="checkbox"
-                  id="sync-mode-checkbox"
-                  checked={syncMode}
-                  onChange={(e) => setSyncMode(e.target.checked)}
-                  style={{ cursor: "pointer" }}
-                />
-                <label htmlFor="sync-mode-checkbox" style={{ cursor: "pointer" }}>
-                  <Typography variant="body2" color="text.secondary">
-                    <strong>Sync Mode:</strong> Delete {provider} records NOT in this CSV
-                  </Typography>
-                </label>
-              </Stack>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, ml: 3 }}>
-                When disabled (default), imports are additive and won't delete existing records.
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ ml: 2 }}>
+                • computerName
+              </Typography>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ ml: 2 }}>
+                • privateIPAddress
+              </Typography>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ ml: 2 }}>
+                • Subscription
+              </Typography>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ ml: 2 }}>
+                • Resource group
+              </Typography>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ ml: 2 }}>
+                • Location
+              </Typography>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ ml: 2, mb: 1 }}>
+                • vmSize, osType, osDiskSize, dataDiskCount, totalDiskSizeGB, displayStatus, timeCreated, tenantId
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                UTF-8 encoding with optional BOM is supported.
               </Typography>
             </Box>
           </Stack>
@@ -200,13 +192,8 @@ export const CsvUploadDialog = ({ open, onClose, onSuccess }: CsvUploadDialogPro
                 </Typography>
                 <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 1 }}>
                   <Chip 
-                    label={`Created: ${importResult.created}`} 
+                    label={`Imported: ${importResult.imported}`} 
                     color="success" 
-                    variant="outlined"
-                  />
-                  <Chip 
-                    label={`Duplicates: ${importResult.duplicates}`} 
-                    color="info" 
                     variant="outlined"
                   />
                   <Chip 
@@ -215,37 +202,23 @@ export const CsvUploadDialog = ({ open, onClose, onSuccess }: CsvUploadDialogPro
                     variant="outlined"
                   />
                   <Chip 
-                    label={`Deleted: ${importResult.deleted}`} 
+                    label={`Purged: ${importResult.purged}`} 
                     color="error" 
                     variant="outlined"
                   />
                 </Stack>
               </Box>
 
-              {importResult.deleted > 0 && (
-                <Box>
-                  <Divider sx={{ mb: 2 }} />
-                  <Alert severity="warning">
-                    <Typography variant="body2" fontWeight={600}>
-                      {importResult.deleted} record(s) were deleted from the database because they were not found in the CSV.
-                    </Typography>
-                    <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                      CSV is the source of truth - any databases not in the CSV are considered decommissioned.
-                    </Typography>
-                  </Alert>
-                </Box>
-              )}
-
               {importResult.skipped > 0 && importResult.skipped_details && importResult.skipped_details.length > 0 && (
                 <Box>
                   <Divider sx={{ mb: 2 }} />
                   <Typography variant="subtitle2" color="warning.main" gutterBottom>
-                    Skipped Records (Missing Required Fields):
+                    Skipped Records:
                   </Typography>
                   <Box sx={{ maxHeight: 150, overflow: 'auto', bgcolor: 'grey.50', p: 1, borderRadius: 1 }}>
                     {importResult.skipped_details.slice(0, 5).map((item: any, idx: number) => (
                       <Typography key={idx} variant="caption" display="block">
-                        • {item.reason}
+                        • Row {item.row}: {item.error}
                       </Typography>
                     ))}
                     {importResult.skipped_details.length > 5 && (
@@ -268,4 +241,3 @@ export const CsvUploadDialog = ({ open, onClose, onSuccess }: CsvUploadDialogPro
     </>
   );
 };
-

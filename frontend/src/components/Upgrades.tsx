@@ -17,11 +17,19 @@ import {
   TablePagination,
   Paper,
   Chip,
+  Button,
+  Menu,
+  ListItemIcon,
+  ListItemText
 } from "@mui/material";
 import WarningRoundedIcon from "@mui/icons-material/WarningRounded";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
+import TableChartRoundedIcon from "@mui/icons-material/TableChartRounded";
+import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import { useState, useEffect } from "react";
 import { useUpgrades } from "../hooks/useUpgrades";
 import { DatabaseRecord } from "../types";
+import { downloadCSV, downloadExcel } from "../utils/exportUtils";
 
 const ENGINE_COLORS = {
   postgres: "#2563eb",
@@ -29,10 +37,20 @@ const ENGINE_COLORS = {
   mssql: "#10b981",
 };
 
-const statusColor: Record<DatabaseRecord["status"], "success" | "warning" | "error"> = {
+const statusColor: Record<DatabaseRecord["status"], "success" | "warning" | "error" | "info" | "default"> = {
   available: "success",
+  ready: "success",
+  stopped: "error",
   maintenance: "warning",
   warning: "error",
+};
+
+const statusLabel: Record<DatabaseRecord["status"], string> = {
+  available: "Running",
+  ready: "Running",
+  stopped: "Stopped",
+  maintenance: "Maintenance",
+  warning: "Warning"
 };
 
 const DEFAULT_COLUMN_WIDTHS = {
@@ -57,6 +75,7 @@ export const Upgrades = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
   const [resizing, setResizing] = useState<{ column: keyof typeof DEFAULT_COLUMN_WIDTHS; startX: number; startWidth: number } | null>(null);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
     if (!resizing) return;
@@ -165,6 +184,26 @@ export const Upgrades = () => {
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
+  };
+
+  const handleDownloadMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleDownloadMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleDownloadCSV = () => {
+    const timestamp = new Date().toISOString().split('T')[0];
+    downloadCSV(filteredDatabases, `upgrades-export-${timestamp}.csv`);
+    handleDownloadMenuClose();
+  };
+
+  const handleDownloadExcel = () => {
+    const timestamp = new Date().toISOString().split('T')[0];
+    downloadExcel(filteredDatabases, `upgrades-export-${timestamp}.xls`);
+    handleDownloadMenuClose();
   };
 
   const paginatedDatabases = filteredDatabases.slice(
@@ -351,6 +390,33 @@ export const Upgrades = () => {
             </MenuItem>
           ))}
         </TextField>
+        
+        <Button
+          variant="outlined"
+          startIcon={<DownloadRoundedIcon />}
+          onClick={handleDownloadMenuOpen}
+          disabled={filteredDatabases.length === 0}
+        >
+          Export
+        </Button>
+        <Menu
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={handleDownloadMenuClose}
+        >
+          <MenuItem onClick={handleDownloadCSV}>
+            <ListItemIcon>
+              <DescriptionRoundedIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Download as CSV</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={handleDownloadExcel}>
+            <ListItemIcon>
+              <TableChartRoundedIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Download as Excel</ListItemText>
+          </MenuItem>
+        </Menu>
       </Box>
 
       {/* Table */}
@@ -434,7 +500,7 @@ export const Upgrades = () => {
                     <TableCell>
                       <Chip
                         size="small"
-                        label={row.status}
+                        label={statusLabel[row.status]}
                         color={statusColor[row.status]}
                         sx={{ textTransform: "capitalize" }}
                       />

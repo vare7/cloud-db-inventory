@@ -1,8 +1,11 @@
 import csv
 import io
 from typing import List, Tuple, Dict, Any
+import logging
 
 from .schemas import DatabaseProvider, DatabaseRecordCreate, DatabaseStatus
+
+logger = logging.getLogger(__name__)
 
 
 def parse_csv(content: str, provider: DatabaseProvider) -> List[DatabaseRecordCreate]:
@@ -33,6 +36,21 @@ def parse_csv_with_report(content: str, provider: DatabaseProvider) -> Tuple[Lis
                 continue
             key_norm = k.strip().lower()
             normalized_row[key_norm] = (v.strip() if v and str(v).strip() else "")
+
+        # Skip "SQL Server (Arc)" records - these are VMs managed in separate Azure VMs tab
+        db_type = (
+            normalized_row.get("db_type")
+            or normalized_row.get("dbtype")
+            or normalized_row.get("type")
+            or ""
+        )
+        if db_type and "sql server (arc)" in db_type.lower():
+            skipped.append({
+                "row_number": idx,
+                "reason": "Skipped: SQL Server (Arc) records are managed in the Azure VMs tab",
+                "raw": {k: row[k] for k in row if k is not None}
+            })
+            continue
 
         # Base generic extraction (AWS / generic CSV)
         service_generic = (
@@ -132,14 +150,44 @@ def parse_csv_with_report(content: str, provider: DatabaseProvider) -> Tuple[Lis
             or normalized_row.get("db_instance_status")
             or normalized_row.get("dbinstancestatus")
             or normalized_row.get("availability")
+            or normalized_row.get("instance_status")
+            or normalized_row.get("power_state")
+            or normalized_row.get("resource_state")
             or "available"
-        ).lower()
-        if any(word in status_str for word in ["maintenance", "upgrading"]):
-            status = DatabaseStatus.maintenance
-        elif any(word in status_str for word in ["warning", "error", "failed"]):
-            status = DatabaseStatus.warning
+        ).lower().strip()
+        
+        # Debug logging to see what status is being read
+        logger.info(f"Row {idx}: Raw status_str='{status_str}', provider={provider}")
+        
+        # For Azure resources, map states to appropriate status values
+        if provider == DatabaseProvider.azure:
+            # Azure State field typically has: "Ready" or "Stopped"
+            # Map "Ready" to available (will display as "Running" in UI)
+            if "stopped" in status_str or "deallocated" in status_str or status_str == "stopped":
+                status = DatabaseStatus.stopped
+            elif "ready" in status_str or status_str == "ready":
+                status = DatabaseStatus.available
+            elif "running" in status_str or status_str == "running":
+                status = DatabaseStatus.available
+            elif any(word in status_str for word in ["maintenance", "upgrading", "updating"]):
+                status = DatabaseStatus.maintenance
+            elif any(word in status_str for word in ["warning", "error", "failed"]):
+                status = DatabaseStatus.warning
+            else:
+                # Default to available if we can't determine
+                status = DatabaseStatus.available
         else:
-            status = DatabaseStatus.available
+            # AWS and generic status mapping
+            if "stopped" in status_str or status_str == "stopped":
+                status = DatabaseStatus.stopped
+            elif "ready" in status_str or status_str == "ready":
+                status = DatabaseStatus.ready
+            elif any(word in status_str for word in ["maintenance", "upgrading", "updating"]):
+                status = DatabaseStatus.maintenance
+            elif any(word in status_str for word in ["warning", "error", "failed", "stopping"]):
+                status = DatabaseStatus.warning
+            else:
+                status = DatabaseStatus.available
 
         subscription = (
             normalized_row.get("subscription")
@@ -182,14 +230,78 @@ def parse_csv_with_report(content: str, provider: DatabaseProvider) -> Tuple[Lis
             if azure_tenant == "":
                 azure_tenant = None
 
-        missing_fields = [
-            name for name, value in {
-                "service": service,
-                "engine": engine,
-                "region": region,
-                "endpoint": endpoint,
-            }.items() if not value
-        ]
+        # Extract detailed fields (optional for all providers)
+        availability_zone = (
+            normalized_row.get("availabilityzone")
+            or normalized_row.get("availability_zone")
+            or normalized_row.get("az")
+            or None
+        )
+        if availability_zone == "":
+            availability_zone = None
+
+        auto_scaling = (
+            normalized_row.get("autoscaling")
+            or normalized_row.get("auto_scaling")
+            or normalized_row.get("autogrow")
+            or normalized_row.get("autoioscaling")
+            or None
+        )
+        if auto_scaling == "":
+            auto_scaling = None
+
+        iops = (
+            normalized_row.get("iops")
+            or normalized_row.get("io_operations")
+            or None
+        )
+        if iops == "":
+            iops = None
+
+        high_availability_state = (
+            normalized_row.get("highavailabilitystate")
+            or normalized_row.get("high_availability_state")
+            or normalized_row.get("ha_state")
+            or normalized_row.get("highavailabilitymode")
+            or None
+        )
+        if high_availability_state == "":
+            high_availability_state = None
+
+        replica = (
+            normalized_row.get("replica")
+            or normalized_row.get("replicas")
+            or normalized_row.get("replication")
+            or None
+        )
+        if replica == "":
+            replica = None
+
+        backup_retention_days = (
+            normalized_row.get("backupretentiondays")
+            or normalized_row.get("backup_retention_days")
+            or normalized_row.get("backup_retention")
+            or None
+        )
+        if backup_retention_days == "":
+            backup_retention_days = None
+
+        geo_redundant_backup = (
+            normalized_row.get("georedundantbackup")
+            or normalized_row.get("geo_redundant_backup")
+            or normalized_row.get("geo_backup")
+            or None
+        )
+        if geo_redundant_backup == "":
+            geo_redundant_backup = None
+
+        # Only service and region are truly required; engine and endpoint can be inferred or optional
+        missing_fields = []
+        if not service:
+            missing_fields.append("service")
+        if not region:
+            missing_fields.append("region")
+        
         if missing_fields:
             skipped.append({
                 "row_number": idx,
@@ -197,6 +309,12 @@ def parse_csv_with_report(content: str, provider: DatabaseProvider) -> Tuple[Lis
                 "raw": {k: row[k] for k in row if k is not None}
             })
             continue
+        
+        # Set defaults for optional fields
+        if not engine:
+            engine = "unknown"
+        if not endpoint:
+            endpoint = service  # Use service name as fallback
 
         if not subscription:
             subscription = "unknown"
@@ -215,6 +333,13 @@ def parse_csv_with_report(content: str, provider: DatabaseProvider) -> Tuple[Lis
                     tags=tags,
                     version=version,
                     azure_tenant=azure_tenant,
+                                    availability_zone=availability_zone,
+                                    auto_scaling=auto_scaling,
+                                    iops=iops,
+                                    high_availability_state=high_availability_state,
+                                    replica=replica,
+                                    backup_retention_days=backup_retention_days,
+                                    geo_redundant_backup=geo_redundant_backup,
                 )
             )
         except Exception as e:

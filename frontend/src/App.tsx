@@ -7,13 +7,20 @@ import { InventoryTable } from "./components/InventoryTable";
 import { StatCards } from "./components/StatCards";
 import { AddDatabaseDrawer } from "./components/AddDatabaseDrawer";
 import { CsvUploadDialog } from "./components/CsvUploadDialog";
+import { AzureVMCsvUploadDialog } from "./components/AzureVMCsvUploadDialog";
 import { useInventory } from "./hooks/useInventory";
+import { useAzureVMs } from "./hooks/useAzureVMs";
 import { Dashboard } from "./components/Dashboard";
 import { Upgrades } from "./components/Upgrades";
+import PricingCalculator from "./components/PricingCalculator";
+import { AzureVMsTable } from "./components/AzureVMsTable";
+import { AzureVMFiltersBar } from "./components/AzureVMFiltersBar";
 
 function App() {
   const { data, stats, loading, error, filters, setFilters, refetch, createRecord, deleteRecord } = useInventory();
+  const { data: vmData, loading: vmLoading, error: vmError, filters: vmFilters, setFilters: setVMFilters, refetch: refetchVMs, deleteRecord: deleteVM } = useAzureVMs();
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
+  const [vmCsvDialogOpen, setVMCsvDialogOpen] = useState(false);
   const [tab, setTab] = useState(0);
   const [showDashboard, setShowDashboard] = useState<boolean>(() => {
     const stored = localStorage.getItem("showDashboard");
@@ -21,6 +28,10 @@ function App() {
   });
   const [showUpgrades, setShowUpgrades] = useState<boolean>(() => {
     const stored = localStorage.getItem("showUpgrades");
+    return stored === null ? true : stored === "true";
+  });
+  const [showPricing, setShowPricing] = useState<boolean>(() => {
+    const stored = localStorage.getItem("showPricing");
     return stored === null ? true : stored === "true";
   });
 
@@ -35,6 +46,15 @@ function App() {
     localStorage.setItem("showUpgrades", checked ? "true" : "false");
     const upgradesTabIndex = showDashboard ? 2 : 1;
     if (!checked && tab === upgradesTabIndex) setTab(0);
+  };
+
+  const togglePricing = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
+    setShowPricing(checked);
+    localStorage.setItem("showPricing", checked ? "true" : "false");
+    let pricingTabIndex = 1;
+    if (showDashboard) pricingTabIndex++;
+    if (showUpgrades) pricingTabIndex++;
+    if (!checked && tab === pricingTabIndex) setTab(0);
   };
 
   return (
@@ -70,6 +90,10 @@ function App() {
                   control={<Switch checked={showUpgrades} onChange={toggleUpgrades} />}
                   label="Upgrades"
                 />
+                <FormControlLabel
+                  control={<Switch checked={showPricing} onChange={togglePricing} />}
+                  label="Pricing"
+                />
               </Stack>
             </Stack>
 
@@ -77,8 +101,10 @@ function App() {
             <Box>
               <Tabs value={tab} onChange={(_e, v) => setTab(v)} sx={{ mb: 2 }}>
                 <Tab label="Inventory" />
+                <Tab label="Azure VMs" />
                 {showDashboard && <Tab label="Dashboard" />}
                 {showUpgrades && <Tab label="Upgrades" />}
+                {showPricing && <Tab label="Pricing Calculator" />}
               </Tabs>
             </Box>
 
@@ -87,7 +113,7 @@ function App() {
                 {/* Stats Cards */}
                 <StatCards stats={stats} />
                 {/* Filters */}
-                <FiltersBar filters={filters} onChange={setFilters} onRefresh={refetch} />
+                <FiltersBar filters={filters} onChange={setFilters} onRefresh={refetch} data={data} />
                 {/* Error Alert */}
                 {error && (
                   <Alert severity="error">
@@ -99,12 +125,50 @@ function App() {
               </>
             )}
 
-            {showDashboard && tab === 1 && (
+            {tab === 1 && (
+              <>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="h6">Azure Virtual Machines</Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<CloudUploadRoundedIcon />}
+                    onClick={() => setVMCsvDialogOpen(true)}
+                  >
+                    Import VMs CSV
+                  </Button>
+                </Stack>
+                {/* Azure VMs Filters */}
+                <AzureVMFiltersBar filters={vmFilters} onChange={setVMFilters} onRefresh={refetchVMs} />
+                {/* Error Alert */}
+                {vmError && (
+                  <Alert severity="error">
+                    {vmError}
+                  </Alert>
+                )}
+                {/* Azure VMs Table */}
+                <AzureVMsTable rows={vmData} loading={vmLoading} onDelete={deleteVM} />
+              </>
+            )}
+
+            {showDashboard && tab === (() => {
+              let idx = 2;
+              return idx;
+            })() && (
               <Dashboard />
             )}
 
-            {showUpgrades && tab === (showDashboard ? 2 : 1) && (
+            {showUpgrades && tab === (() => {
+              let idx = 3;
+              return idx;
+            })() && (
               <Upgrades />
+            )}
+
+            {showPricing && tab === (() => {
+              let idx = 4;
+              return idx;
+            })() && (
+              <PricingCalculator />
             )}
           </Stack>
 
@@ -113,6 +177,13 @@ function App() {
             open={csvDialogOpen}
             onClose={() => setCsvDialogOpen(false)}
             onSuccess={refetch}
+          />
+
+          {/* Azure VM CSV Upload Dialog */}
+          <AzureVMCsvUploadDialog
+            open={vmCsvDialogOpen}
+            onClose={() => setVMCsvDialogOpen(false)}
+            onSuccess={refetchVMs}
           />
         </Container>
       </Box>

@@ -1,0 +1,3 @@
+﻿computerName,privateIPAddress,Subscription,Resource group,Location,vmSize,osType,osName,osVersion,osDiskSize,dataDiskCount,totalDiskSizeGB,displayStatus,timeCreated,tenantId
+BDDC1DWCERT1,10.162.226.38,TDH-Corp-Prod-NA-US,rg-tech-vmapp-pr-cu-01,Central US,Standard_D8as_v5,Windows,Windows Server 2022 Datacenter,10.0.20348.4405,90,5,6018,VM running,2025-02-21T17:20:16.5554548Z,c162a585-4fef-44bd-9271-d96409d0a349
+BDDC1DWCERT4,,TDH-Corp-Prod-NA-US,RG-TECH-VMAPP-PR-CU-01,Central US,Standard_E8as_v5,Windows,Windows Server 2022 Standard,10.0.20348.4405,90,5,6141,VM running,2025-02-14T17:23:54.786Z,c162a585-4fef-44bd-9271-d96409d0a349

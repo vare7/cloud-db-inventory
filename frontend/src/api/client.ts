@@ -11,10 +11,11 @@ export const apiClient = axios.create({
   timeout: 8000
 });
 
-export const importCsv = async (file: File, provider: Provider) => {
+export const importCsv = async (file: File, provider: Provider, sync: boolean = false) => {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("provider", provider);
+  formData.append("sync", sync.toString());
   const response = await apiClient.post("/databases/import-csv", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
@@ -23,4 +24,8 @@ export const importCsv = async (file: File, provider: Provider) => {
   return response.data;
 };
 
+export const fetchPricing = async () => {
+  const response = await apiClient.get("/pricing");
+  return response.data;
+};
 

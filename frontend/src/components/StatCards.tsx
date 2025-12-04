@@ -17,6 +17,8 @@ const placeholder: StatsSummary = {
   },
   by_status: {
     available: 0,
+    ready: 0,
+    stopped: 0,
     maintenance: 0,
     warning: 0
   }
@@ -39,7 +41,7 @@ export const StatCards = ({ stats }: StatCardsProps) => {
     },
     {
       title: "Healthy (%)",
-      value: data.total ? Math.round((data.by_status.available / data.total) * 100) : 0,
+      value: data.total ? Math.round(((data.by_status.available + data.by_status.ready) / data.total) * 100) : 0,
       color: "#10b981", // green
       icon: <HealthAndSafetyRoundedIcon fontSize="large" sx={{ color: "#ffffff" }} />
     }

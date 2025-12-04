@@ -3,18 +3,26 @@ import {
   Button,
   MenuItem,
   TextField,
-  InputAdornment
+  InputAdornment,
+  Menu,
+  ListItemIcon,
+  ListItemText
 } from "@mui/material";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import { InventoryFilters, Provider, Status } from "../types";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
+import TableChartRoundedIcon from "@mui/icons-material/TableChartRounded";
+import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
+import { InventoryFilters, Provider, Status, DatabaseRecord } from "../types";
 import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
+import { downloadCSV, downloadExcel } from "../utils/exportUtils";
 
 interface FiltersBarProps {
   filters: InventoryFilters;
   onChange: (filters: InventoryFilters) => void;
   onRefresh: () => void;
+  data?: DatabaseRecord[];
 }
 
 interface FilterOptions {
@@ -22,30 +30,64 @@ interface FilterOptions {
   engines: string[];
   versions: string[];
   subscriptions: string[];
+  statuses: string[];
 }
 
 const providers: Provider[] = ["AWS", "Azure"];
-const statuses: Status[] = ["available", "maintenance", "warning"];
 
-export const FiltersBar = ({ filters, onChange, onRefresh }: FiltersBarProps) => {
+const statusDisplayMap: Record<string, string> = {
+  available: "Running",
+  ready: "Running",
+  stopped: "Stopped",
+  maintenance: "Maintenance",
+  warning: "Warning"
+};
+
+export const FiltersBar = ({ filters, onChange, onRefresh, data = [] }: FiltersBarProps) => {
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     regions: [],
     engines: [],
     versions: [],
     subscriptions: [],
+    statuses: [],
   });
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+  const handleDownloadMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleDownloadMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleDownloadCSV = () => {
+    const timestamp = new Date().toISOString().split('T')[0];
+    downloadCSV(data, `inventory-export-${timestamp}.csv`);
+    handleDownloadMenuClose();
+  };
+
+  const handleDownloadExcel = () => {
+    const timestamp = new Date().toISOString().split('T')[0];
+    downloadExcel(data, `inventory-export-${timestamp}.xls`);
+    handleDownloadMenuClose();
+  };
 
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const response = await apiClient.get("/filter-options");
+        const params = new URLSearchParams();
+        if (filters.provider) {
+          params.append('provider', filters.provider);
+        }
+        const response = await apiClient.get(`/filter-options?${params.toString()}`);
         setFilterOptions(response.data);
       } catch (error) {
         console.error("Failed to fetch filter options:", error);
       }
     };
     fetchOptions();
-  }, []);
+  }, [filters.provider]);
 
   // Extract major version (e.g., "8.0.35" -> "8.0", "15.4" -> "15")
   const extractMajorVersion = (version: string): string => {
@@ -113,9 +155,9 @@ export const FiltersBar = ({ filters, onChange, onRefresh }: FiltersBarProps) =>
         sx={{ minWidth: 150 }}
       >
         <MenuItem value="">All</MenuItem>
-        {statuses.map((status) => (
+        {filterOptions.statuses.map((status) => (
           <MenuItem value={status} key={status}>
-            {status}
+            {statusDisplayMap[status] || status}
           </MenuItem>
         ))}
       </TextField>
@@ -186,6 +228,32 @@ export const FiltersBar = ({ filters, onChange, onRefresh }: FiltersBarProps) =>
       >
         Refresh
       </Button>
+      <Button
+        variant="outlined"
+        startIcon={<DownloadRoundedIcon />}
+        onClick={handleDownloadMenuOpen}
+        disabled={data.length === 0}
+      >
+        Export
+      </Button>
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleDownloadMenuClose}
+      >
+        <MenuItem onClick={handleDownloadCSV}>
+          <ListItemIcon>
+            <DescriptionRoundedIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Download as CSV</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={handleDownloadExcel}>
+          <ListItemIcon>
+            <TableChartRoundedIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Download as Excel</ListItemText>
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };

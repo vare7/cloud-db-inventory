@@ -19,4 +19,13 @@ class DatabaseRecordModel(Base):
     tags = Column(ARRAY(String), default=lambda: [])
     version = Column(String, nullable=True)
     azure_tenant = Column(String, nullable=True)
+    
+    # Additional detailed fields
+    availability_zone = Column(String, nullable=True)
+    auto_scaling = Column(String, nullable=True)
+    iops = Column(String, nullable=True)
+    high_availability_state = Column(String, nullable=True)
+    replica = Column(String, nullable=True)
+    backup_retention_days = Column(String, nullable=True)
+    geo_redundant_backup = Column(String, nullable=True)
 

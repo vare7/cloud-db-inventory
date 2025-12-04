@@ -1,0 +1,5 @@
+﻿name,DB_Type,Resource group,Subscription,Location,State,dbVersion,StorageGB,FQDN
+perfdb1,MySQL,performance_engineering,TDH-Training,East US,Ready,8.0.21,20,perfdb1.mysql.database.azure.com
+sqlserver-arc-1,SQL Server (Arc),rg-sql-arc,TDH-Training,Central US,Ready,2019,100,sqlserver-arc-1.example.com
+pgdb1,PostgreSQL,performance_engineering,TDH-Training,East US,Ready,14,32,pgdb1.postgres.database.azure.com
+sqlserver-arc-2,SQL Server (Arc),rg-sql-arc-2,TDH-Training,West US,Ready,2022,150,sqlserver-arc-2.example.com

@@ -1,7 +1,8 @@
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, Query
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from .csv_parser import parse_csv_with_report
 from .database import get_db, init_db
@@ -12,8 +13,13 @@ from .schemas import (
     DatabaseStatus,
     InventoryFilters,
     StatsResponse,
+    AzureVM,
+    AzureVMCreate,
+    AzureVMFilters,
 )
 from .store import InventoryStore
+from .vm_store import AzureVMStore
+from .vm_csv_parser import parse_azure_vm_csv
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -120,11 +126,36 @@ def delete_database(
     if not deleted:
         raise HTTPException(status_code=404, detail="Database not found")
 
+@app.delete("/api/databases", response_model=dict)
+def purge_databases(db: Session = Depends(get_db)) -> dict:
+    """Delete all records in the inventory."""
+    store = InventoryStore(db)
+    count = store.purge_all()
+    return {"message": "Purged all records", "deleted": count}
+
 
 @app.get("/api/stats", response_model=StatsResponse)
-def get_stats(db: Session = Depends(get_db)) -> StatsResponse:
+def get_stats(
+    provider: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
+    engine: Optional[str] = Query(None),
+    version: Optional[str] = Query(None),
+    subscription: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+) -> StatsResponse:
     store = InventoryStore(db)
-    return StatsResponse(**store.stats())
+    filters = InventoryFilters(
+        provider=provider,
+        status=status,
+        region=region,
+        engine=engine,
+        version=version,
+        subscription=subscription,
+        search=search
+    )
+    return StatsResponse(**store.stats(filters))
 
 
 @app.get("/api/metrics", response_model=dict)
@@ -158,16 +189,29 @@ def resolve_duplicates(db: Session = Depends(get_db)) -> dict:
 
 
 @app.get("/api/filter-options", response_model=dict)
-def get_filter_options(db: Session = Depends(get_db)) -> dict:
-    """Get unique values for filter dropdowns."""
+def get_filter_options(
+    provider: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+) -> dict:
+    """Get unique values for filter dropdowns, optionally filtered by provider."""
     store = InventoryStore(db)
-    return store.get_filter_options()
+    provider_enum = DatabaseProvider(provider) if provider else None
+    return store.get_filter_options(provider_enum)
+
+
+@app.get("/api/pricing", response_model=dict)
+def get_pricing(db: Session = Depends(get_db)) -> dict:
+    """Get pricing estimates for all database instances."""
+    store = InventoryStore(db)
+    return store.calculate_pricing()
 
 
 @app.post("/api/databases/import-csv", response_model=dict)
 async def import_csv(
     file: UploadFile = File(...),
     provider: str = Form("AWS"),
+    purge_first: bool = Form(False),
+    sync: bool = Form(False),
     db: Session = Depends(get_db),
 ) -> dict:
     """
@@ -221,10 +265,14 @@ async def import_csv(
         raise HTTPException(status_code=400, detail=" ".join(detail_parts))
 
     store = InventoryStore(db)
+    if purge_first:
+        store.purge_all()
     try:
         created, duplicates = store.bulk_create(records)
-        # Delete records from DB that are not in CSV (CSV is source of truth)
-        deleted = store.delete_records_not_in_csv(provider_enum, records)
+        # Only sync (delete records not in CSV) if explicitly requested
+        deleted = []
+        if sync:
+            deleted = store.delete_records_not_in_csv(provider_enum, records)
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
@@ -245,3 +293,108 @@ async def import_csv(
         "deleted_details": deleted,
     }
 
+
+# ============= Azure VMs Endpoints =============
+
+@app.get("/api/azure-vms", response_model=list[AzureVM])
+def list_azure_vms(
+    region: Optional[str] = Query(None),
+    subscription: Optional[str] = Query(None),
+    tenant_id: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+) -> list[AzureVM]:
+    """List Azure VMs with optional filters."""
+    store = AzureVMStore(db)
+    filters = AzureVMFilters(
+        region=region,
+        subscription=subscription,
+        tenant_id=tenant_id,
+        search=search,
+    )
+    return store.list(filters)
+
+
+@app.get("/api/azure-vms/{vm_id}", response_model=AzureVM)
+def get_azure_vm(vm_id: str, db: Session = Depends(get_db)) -> AzureVM:
+    """Get a specific Azure VM."""
+    store = AzureVMStore(db)
+    vm = store.get(vm_id)
+    if not vm:
+        raise HTTPException(status_code=404, detail="VM not found")
+    return vm
+
+
+@app.post("/api/azure-vms", response_model=AzureVM)
+def create_azure_vm(vm: AzureVMCreate, db: Session = Depends(get_db)) -> AzureVM:
+    """Create a new Azure VM record."""
+    store = AzureVMStore(db)
+    return store.create(vm)
+
+
+@app.delete("/api/azure-vms/{vm_id}")
+def delete_azure_vm(vm_id: str, db: Session = Depends(get_db)) -> dict:
+    """Delete an Azure VM record."""
+    store = AzureVMStore(db)
+    if not store.delete(vm_id):
+        raise HTTPException(status_code=404, detail="VM not found")
+    return {"message": "VM deleted successfully"}
+
+
+@app.post("/api/azure-vms/import-csv")
+def import_azure_vms_csv(
+    file: UploadFile = File(...),
+    purge_first: bool = Form(False),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Import Azure VMs from CSV file."""
+    store = AzureVMStore(db)
+    
+    # Purge if requested
+    if purge_first:
+        deleted_count = store.purge_all()
+    else:
+        deleted_count = 0
+    
+    # Parse and import CSV
+    try:
+        content = file.file.read()
+        parsed_vms, skipped = parse_azure_vm_csv(content)
+        
+        if parsed_vms:
+            imported_count = store.create_bulk(parsed_vms)
+        else:
+            imported_count = 0
+        
+        return {
+            "message": "Import completed",
+            "imported": imported_count,
+            "skipped": len(skipped),
+            "purged": deleted_count,
+            "skipped_details": skipped,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"CSV parsing error: {str(e)}")
+
+
+@app.delete("/api/azure-vms")
+def purge_all_azure_vms(db: Session = Depends(get_db)) -> dict:
+    """Delete all Azure VM records."""
+    store = AzureVMStore(db)
+    count = store.purge_all()
+    return {"message": "Purged all Azure VM records", "deleted": count}
+
+
+@app.get("/api/azure-vms-filter-options")
+def get_azure_vms_filter_options(db: Session = Depends(get_db)) -> dict:
+    """Get available filter options for Azure VMs."""
+    store = AzureVMStore(db)
+    return store.get_filter_options()
+
+
+@app.get("/api/tenant-names")
+def get_tenant_names(db: Session = Depends(get_db)) -> dict:
+    """Get all tenant ID to friendly name mappings."""
+    from .tenant_mapping import AzureTenantMapping
+    mappings = db.query(AzureTenantMapping).all()
+    return {mapping.tenant_id: mapping.friendly_name for mapping in mappings}

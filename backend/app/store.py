@@ -11,6 +11,7 @@ from .schemas import (
 )
 from .models import DatabaseRecordModel
 from .seed_data import SEED_DATABASES
+from .tenant_mapping import get_tenant_name
 
 
 class InventoryStore:
@@ -91,6 +92,11 @@ class InventoryStore:
         self.db.delete(db_record)
         self.db.commit()
         return True
+    def purge_all(self) -> int:
+        """Delete all database records."""
+        count = self.db.query(DatabaseRecordModel).delete()
+        self.db.commit()
+        return count
 
     def bulk_create(self, data_list: List[DatabaseRecordCreate]) -> tuple[List[DatabaseRecord], List[dict]]:
         """
@@ -183,12 +189,49 @@ class InventoryStore:
         self.db.refresh(db_record)
         return self._model_to_schema(db_record)
 
-    def stats(self) -> dict:
-        total = self.db.query(func.count(DatabaseRecordModel.id)).scalar()
+    def stats(self, filters: Optional[InventoryFilters] = None) -> dict:
+        """Calculate statistics based on optional filters."""
+        # Build base query with filters
+        query = self.db.query(DatabaseRecordModel)
+        
+        if filters:
+            if filters.provider:
+                query = query.filter(DatabaseRecordModel.provider == filters.provider)
+            if filters.region:
+                query = query.filter(
+                    func.lower(DatabaseRecordModel.region) == filters.region.lower()
+                )
+            if filters.status:
+                query = query.filter(DatabaseRecordModel.status == filters.status)
+            if filters.engine:
+                query = query.filter(
+                    func.lower(DatabaseRecordModel.engine).contains(filters.engine.lower())
+                )
+            if filters.version:
+                query = query.filter(
+                    func.lower(DatabaseRecordModel.version).contains(filters.version.lower())
+                )
+            if filters.subscription:
+                query = query.filter(
+                    func.lower(DatabaseRecordModel.subscription).contains(filters.subscription.lower())
+                )
+            if filters.search:
+                text = filters.search.lower()
+                query = query.filter(
+                    or_(
+                        func.lower(DatabaseRecordModel.engine).contains(text),
+                        func.lower(DatabaseRecordModel.service).contains(text),
+                        func.lower(DatabaseRecordModel.endpoint).contains(text),
+                        func.cast(DatabaseRecordModel.tags, String).ilike(f"%{text}%"),
+                    )
+                )
+        
+        # Count total
+        total = query.with_entities(func.count(DatabaseRecordModel.id)).scalar()
 
         # Count by provider
         by_provider_result = (
-            self.db.query(
+            query.with_entities(
                 DatabaseRecordModel.provider,
                 func.count(DatabaseRecordModel.id)
             )
@@ -199,7 +242,7 @@ class InventoryStore:
 
         # Count by status
         by_status_result = (
-            self.db.query(
+            query.with_entities(
                 DatabaseRecordModel.status,
                 func.count(DatabaseRecordModel.id)
             )
@@ -209,7 +252,7 @@ class InventoryStore:
         by_status = {status: count for status, count in by_status_result}
 
         # Total storage
-        storage_result = self.db.query(
+        storage_result = query.with_entities(
             func.sum(DatabaseRecordModel.storage_gb)
         ).scalar()
         storage_gb_total = int(storage_result) if storage_result else 0
@@ -450,30 +493,179 @@ class InventoryStore:
             "databases": upgrade_list,
         }
 
-    def get_filter_options(self) -> dict:
-        """Return unique values for filter dropdowns."""
+    def get_filter_options(self, provider: Optional[DatabaseProvider] = None) -> dict:
+        """Return unique values for filter dropdowns, optionally filtered by provider."""
+        # Base query
+        query = self.db.query(DatabaseRecordModel)
+        
+        # Filter by provider if specified
+        if provider:
+            query = query.filter(DatabaseRecordModel.provider == provider)
+        
         # Get distinct regions
-        regions = [r[0] for r in self.db.query(DatabaseRecordModel.region).distinct().all() if r[0]]
+        regions = [r[0] for r in query.with_entities(DatabaseRecordModel.region).distinct().all() if r[0]]
         
         # Get distinct engines
-        engines = [e[0] for e in self.db.query(DatabaseRecordModel.engine).distinct().all() if e[0]]
+        engines = [e[0] for e in query.with_entities(DatabaseRecordModel.engine).distinct().all() if e[0]]
         
         # Get distinct versions
-        versions = [v[0] for v in self.db.query(DatabaseRecordModel.version).distinct().all() if v[0]]
+        versions = [v[0] for v in query.with_entities(DatabaseRecordModel.version).distinct().all() if v[0]]
         
         # Get distinct subscriptions
-        subscriptions = [s[0] for s in self.db.query(DatabaseRecordModel.subscription).distinct().all() if s[0]]
+        subscriptions = [s[0] for s in query.with_entities(DatabaseRecordModel.subscription).distinct().all() if s[0]]
+        
+        # Get distinct statuses for this provider
+        statuses = [s[0] for s in query.with_entities(DatabaseRecordModel.status).distinct().all() if s[0]]
         
         return {
             "regions": sorted(regions),
             "engines": sorted(engines),
             "versions": sorted(versions),
             "subscriptions": sorted(subscriptions),
+            "statuses": sorted(statuses),
         }
 
-    @staticmethod
-    def _model_to_schema(db_record: DatabaseRecordModel) -> DatabaseRecord:
+    def calculate_pricing(self) -> Dict[str, Any]:
+        """Calculate hourly and monthly pricing estimates for all database instances.
+        
+        Pricing is based on provider, engine type, region, and storage size.
+        These are simplified estimates for demonstration purposes.
+        """
+        records = self.db.query(DatabaseRecordModel).all()
+        
+        pricing_data = []
+        total_hourly = 0.0
+        total_monthly = 0.0
+        
+        for record in records:
+            hourly_cost = self._estimate_hourly_cost(
+                record.provider,
+                record.engine,
+                record.region,
+                record.storage_gb
+            )
+            monthly_cost = hourly_cost * 730  # Average hours per month
+            
+            total_hourly += hourly_cost
+            total_monthly += monthly_cost
+            
+            pricing_data.append({
+                "id": record.id,
+                "provider": record.provider.value if hasattr(record.provider, "value") else record.provider,
+                "service": record.service,
+                "engine": record.engine,
+                "region": record.region,
+                "storage_gb": record.storage_gb,
+                "version": record.version,
+                "subscription": record.subscription,
+                "hourly_cost": round(hourly_cost, 2),
+                "monthly_cost": round(monthly_cost, 2),
+            })
+        
+        return {
+            "databases": pricing_data,
+            "total_hourly": round(total_hourly, 2),
+            "total_monthly": round(total_monthly, 2),
+            "count": len(pricing_data),
+        }
+    
+    def _estimate_hourly_cost(
+        self,
+        provider: DatabaseProvider,
+        engine: str,
+        region: str,
+        storage_gb: int
+    ) -> float:
+        """Estimate hourly cost based on provider, engine, region, and storage.
+        
+        These are simplified estimates for demonstration purposes.
+        Actual costs vary based on instance type, IOPS, backups, etc.
+        """
+        # Base compute costs per hour by provider and engine
+        compute_rates = {
+            DatabaseProvider.aws: {
+                "postgres": 0.12,  # db.t3.medium equivalent
+                "mysql": 0.10,
+                "mariadb": 0.10,
+                "oracle": 0.35,
+                "sqlserver": 0.25,
+                "aurora": 0.15,
+            },
+            DatabaseProvider.azure: {
+                "postgres": 0.14,  # B_Standard_B2s equivalent
+                "mysql": 0.12,
+                "sqlserver": 0.28,
+                "mariadb": 0.11,
+            }
+        }
+        
+        # Storage costs per GB per month
+        storage_rates = {
+            DatabaseProvider.aws: 0.115,  # GP2 storage
+            DatabaseProvider.azure: 0.12,  # Standard SSD
+        }
+        
+        # Regional multipliers (US East/Central = 1.0 baseline)
+        region_multipliers = {
+            # AWS regions
+            "us-east-1": 1.0,
+            "us-east-2": 1.0,
+            "us-west-1": 1.05,
+            "us-west-2": 1.05,
+            "eu-west-1": 1.1,
+            "eu-central-1": 1.12,
+            "ap-southeast-1": 1.15,
+            "ap-northeast-1": 1.18,
+            # Azure regions
+            "eastus": 1.0,
+            "eastus2": 1.0,
+            "westus": 1.05,
+            "westus2": 1.05,
+            "centralus": 1.0,
+            "northcentralus": 1.0,
+            "westeurope": 1.1,
+            "northeurope": 1.08,
+            "southeastasia": 1.15,
+            "eastasia": 1.15,
+        }
+        
+        # Get base compute cost
+        engine_lower = engine.lower()
+        provider_rates = compute_rates.get(provider, {})
+        
+        # Match engine (handle variants like "postgres", "postgresql")
+        base_compute = 0.10  # Default fallback
+        for key, rate in provider_rates.items():
+            if key in engine_lower or engine_lower in key:
+                base_compute = rate
+                break
+        
+        # Apply regional multiplier
+        region_lower = region.lower().replace("-", "")
+        region_multiplier = region_multipliers.get(region_lower, 1.0)
+        
+        # If exact match not found, try partial matches
+        if region_multiplier == 1.0 and region_lower not in region_multipliers:
+            for region_key, multiplier in region_multipliers.items():
+                if region_key in region_lower or region_lower in region_key:
+                    region_multiplier = multiplier
+                    break
+        
+        compute_cost = base_compute * region_multiplier
+        
+        # Storage cost (convert monthly to hourly)
+        storage_cost_monthly = storage_gb * storage_rates.get(provider, 0.115)
+        storage_cost_hourly = storage_cost_monthly / 730
+        
+        total_hourly = compute_cost + storage_cost_hourly
+        
+        return total_hourly
+
+    def _model_to_schema(self, db_record: DatabaseRecordModel) -> DatabaseRecord:
         """Convert SQLAlchemy model to Pydantic schema."""
+        # Map tenant ID to friendly name using database lookup
+        tenant_display = get_tenant_name(self.db, db_record.azure_tenant) if db_record.azure_tenant else "-"
+        
         return DatabaseRecord(
             id=db_record.id,
             provider=db_record.provider,
@@ -486,5 +678,5 @@ class InventoryStore:
             subscription=db_record.subscription,
             tags=db_record.tags or [],
             version=db_record.version,
-            azure_tenant=db_record.azure_tenant,
+            azure_tenant=tenant_display,
         )

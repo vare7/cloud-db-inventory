@@ -46,7 +46,7 @@ export const useInventory = (): UseInventoryResult => {
       if (filters.search) searchParams.append("search", filters.search);
       const [inventoryRes, statsRes] = await Promise.all([
         apiClient.get(`/databases?${searchParams.toString()}`),
-        apiClient.get("/stats")
+        apiClient.get(`/stats?${searchParams.toString()}`)
       ]);
       setData(inventoryRes.data);
       setStats(statsRes.data);
