@@ -191,6 +191,10 @@ def parse_csv_with_report(content: str, provider: DatabaseProvider) -> Tuple[Lis
 
         subscription = (
             normalized_row.get("subscription")
+            or normalized_row.get("accountid")  # AWS Account ID
+            or normalized_row.get("account_id")
+            or normalized_row.get("account")
+            or normalized_row.get("aws_account_id")
             or normalized_row.get("owner")
             or normalized_row.get("owner_team")
             or normalized_row.get("team")

@@ -49,9 +49,33 @@ class InventoryStore:
                 func.lower(DatabaseRecordModel.version).contains(filters.version.lower())
             )
         if filters.subscription:
-            query = query.filter(
-                func.lower(DatabaseRecordModel.subscription).contains(filters.subscription.lower())
-            )
+            # Handle AWS account name mapping
+            # Try to find the account ID that maps to the friendly name
+            from .aws_account_store import AWSAccountStore
+            aws_store = AWSAccountStore(self.db)
+            account_names = aws_store.get_account_names_map()
+            
+            # Check if the filter is a friendly name and find the corresponding account ID
+            account_id_filter = None
+            for acct_id, friendly_name in account_names.items():
+                if friendly_name.lower() == filters.subscription.lower():
+                    account_id_filter = acct_id
+                    break
+            
+            if account_id_filter:
+                # Filter by the account ID (which may have or not have leading zeros)
+                # We need to check both the direct ID and with leading zeros normalized
+                query = query.filter(
+                    or_(
+                        func.lower(DatabaseRecordModel.subscription).contains(account_id_filter.lower()),
+                        func.lower(DatabaseRecordModel.subscription).contains(account_id_filter.lstrip('0').lower() if account_id_filter.isdigit() else account_id_filter.lower())
+                    )
+                )
+            else:
+                # Filter by the subscription as-is (for non-AWS subscriptions or direct ID matching)
+                query = query.filter(
+                    func.lower(DatabaseRecordModel.subscription).contains(filters.subscription.lower())
+                )
         if filters.search:
             text = filters.search.lower()
             # PostgreSQL array contains check for tags
@@ -102,18 +126,27 @@ class InventoryStore:
         """
         Create multiple records in a single operation, skipping duplicates.
         Returns: (created_records, duplicates_skipped)
-        Duplicate detection: provider + service + region combination
+        Duplicate detection: service name (matches unique constraint)
         """
         db_records = []
         duplicates = []
+        seen_services = set()  # Track service names in this batch
         
         for data in data_list:
             try:
-                # Check if record already exists (provider + service + region)
+                # Check for duplicate within the current batch
+                if data.service in seen_services:
+                    duplicates.append({
+                        "provider": data.provider.value,
+                        "service": data.service,
+                        "region": data.region,
+                        "reason": "Duplicate service name in CSV file"
+                    })
+                    continue
+                
+                # Check if record already exists by service name (unique constraint)
                 existing = self.db.query(DatabaseRecordModel).filter(
-                    DatabaseRecordModel.provider == data.provider,
-                    DatabaseRecordModel.service == data.service,
-                    DatabaseRecordModel.region == data.region
+                    DatabaseRecordModel.service == data.service
                 ).first()
                 
                 if existing:
@@ -121,12 +154,14 @@ class InventoryStore:
                         "provider": data.provider.value,
                         "service": data.service,
                         "region": data.region,
-                        "reason": "Already exists in database"
+                        "reason": "Service name already exists in database"
                     })
                     continue
                 
+                # Add to batch
                 db_record = DatabaseRecordModel(**data.model_dump())
                 db_records.append(db_record)
+                seen_services.add(data.service)
             except Exception as e:
                 # Log which record failed
                 print(f"Error creating record: {e}")
@@ -212,9 +247,31 @@ class InventoryStore:
                     func.lower(DatabaseRecordModel.version).contains(filters.version.lower())
                 )
             if filters.subscription:
-                query = query.filter(
-                    func.lower(DatabaseRecordModel.subscription).contains(filters.subscription.lower())
-                )
+                # Handle AWS account name mapping (same as in list method)
+                from .aws_account_store import AWSAccountStore
+                aws_store = AWSAccountStore(self.db)
+                account_names = aws_store.get_account_names_map()
+                
+                # Check if the filter is a friendly name and find the corresponding account ID
+                account_id_filter = None
+                for acct_id, friendly_name in account_names.items():
+                    if friendly_name.lower() == filters.subscription.lower():
+                        account_id_filter = acct_id
+                        break
+                
+                if account_id_filter:
+                    # Filter by the account ID (which may have or not have leading zeros)
+                    query = query.filter(
+                        or_(
+                            func.lower(DatabaseRecordModel.subscription).contains(account_id_filter.lower()),
+                            func.lower(DatabaseRecordModel.subscription).contains(account_id_filter.lstrip('0').lower() if account_id_filter.isdigit() else account_id_filter.lower())
+                        )
+                    )
+                else:
+                    # Filter by the subscription as-is (for non-AWS subscriptions or direct ID matching)
+                    query = query.filter(
+                        func.lower(DatabaseRecordModel.subscription).contains(filters.subscription.lower())
+                    )
             if filters.search:
                 text = filters.search.lower()
                 query = query.filter(
@@ -238,7 +295,10 @@ class InventoryStore:
             .group_by(DatabaseRecordModel.provider)
             .all()
         )
-        by_provider = {provider: count for provider, count in by_provider_result}
+        by_provider = {
+            (provider.value if hasattr(provider, 'value') else str(provider)): count 
+            for provider, count in by_provider_result
+        }
 
         # Count by status
         by_status_result = (
@@ -249,7 +309,10 @@ class InventoryStore:
             .group_by(DatabaseRecordModel.status)
             .all()
         )
-        by_status = {status: count for status, count in by_status_result}
+        by_status = {
+            (status.value if hasattr(status, 'value') else str(status)): count 
+            for status, count in by_status_result
+        }
 
         # Total storage
         storage_result = query.with_entities(
@@ -429,9 +492,30 @@ class InventoryStore:
             "version_counts": version_counts,
         }
 
-    def upgrades_needed(self) -> dict:
+    def upgrades_needed(self, filters: InventoryFilters | None = None) -> dict:
         """Return databases that need version upgrades based on minimum thresholds."""
-        db_records = self.db.query(DatabaseRecordModel).all()
+        if filters is None:
+            filters = InventoryFilters()
+        
+        # Start with all records then apply filters
+        query = self.db.query(DatabaseRecordModel)
+        
+        if filters.provider:
+            query = query.filter(DatabaseRecordModel.provider == filters.provider)
+        if filters.engine:
+            query = query.filter(
+                func.lower(DatabaseRecordModel.engine).contains(filters.engine.lower())
+            )
+        if filters.version:
+            query = query.filter(DatabaseRecordModel.version == filters.version)
+        if filters.subscription:
+            query = query.filter(
+                func.lower(DatabaseRecordModel.subscription).contains(filters.subscription.lower())
+            )
+        if filters.status:
+            query = query.filter(DatabaseRecordModel.status == filters.status)
+        
+        db_records = query.all()
 
         def normalize_engine(name: str) -> str:
             n = (name or "").lower()
@@ -511,8 +595,24 @@ class InventoryStore:
         # Get distinct versions
         versions = [v[0] for v in query.with_entities(DatabaseRecordModel.version).distinct().all() if v[0]]
         
-        # Get distinct subscriptions
-        subscriptions = [s[0] for s in query.with_entities(DatabaseRecordModel.subscription).distinct().all() if s[0]]
+        # Get distinct subscriptions with AWS account name mapping (always apply mapping)
+        subscriptions_raw = [s[0] for s in query.with_entities(DatabaseRecordModel.subscription).distinct().all() if s[0]]
+        
+        # Always map AWS account IDs to friendly names, regardless of provider filter
+        from .aws_account_store import AWSAccountStore
+        aws_store = AWSAccountStore(self.db)
+        account_names = aws_store.get_account_names_map()
+        
+        subscriptions = []
+        for s in subscriptions_raw:
+            # Try direct mapping first
+            if s in account_names:
+                subscriptions.append(account_names[s])
+            # Try mapping with leading zeros normalized (in case account ID has leading zeros)
+            elif s.isdigit() and s.lstrip('0') in account_names:
+                subscriptions.append(account_names[s.lstrip('0')])
+            else:
+                subscriptions.append(s)
         
         # Get distinct statuses for this provider
         statuses = [s[0] for s in query.with_entities(DatabaseRecordModel.status).distinct().all() if s[0]]
@@ -521,7 +621,7 @@ class InventoryStore:
             "regions": sorted(regions),
             "engines": sorted(engines),
             "versions": sorted(versions),
-            "subscriptions": sorted(subscriptions),
+            "subscriptions": sorted(set(subscriptions)),  # Remove duplicates (in case multiple account IDs map to same name)
             "statuses": sorted(statuses),
         }
 
@@ -666,6 +766,19 @@ class InventoryStore:
         # Map tenant ID to friendly name using database lookup
         tenant_display = get_tenant_name(self.db, db_record.azure_tenant) if db_record.azure_tenant else "-"
         
+        # For AWS provider, try to replace account ID with friendly name in subscription field
+        subscription_display = db_record.subscription
+        if db_record.provider == DatabaseProvider.aws:
+            from .aws_account_store import AWSAccountStore
+            aws_store = AWSAccountStore(self.db)
+            account_names = aws_store.get_account_names_map()
+            # Try direct mapping first
+            if db_record.subscription in account_names:
+                subscription_display = account_names[db_record.subscription]
+            # Try mapping with leading zeros normalized (in case account ID has leading zeros)
+            elif db_record.subscription.isdigit() and db_record.subscription.lstrip('0') in account_names:
+                subscription_display = account_names[db_record.subscription.lstrip('0')]
+        
         return DatabaseRecord(
             id=db_record.id,
             provider=db_record.provider,
@@ -675,7 +788,7 @@ class InventoryStore:
             endpoint=db_record.endpoint,
             storage_gb=db_record.storage_gb,
             status=db_record.status,
-            subscription=db_record.subscription,
+            subscription=subscription_display,
             tags=db_record.tags or [],
             version=db_record.version,
             azure_tenant=tenant_display,

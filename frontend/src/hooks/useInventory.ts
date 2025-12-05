@@ -24,13 +24,20 @@ const defaultFilters: InventoryFilters = {
   search: ""
 };
 
-export const useInventory = (): UseInventoryResult => {
+export const useInventory = (initialFilters?: InventoryFilters): UseInventoryResult => {
   const [data, setData] = useState<DatabaseRecord[]>([]);
   const [stats, setStats] = useState<StatsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFiltersState] = useState<InventoryFilters>(defaultFilters);
+  const [filters, setFiltersState] = useState<InventoryFilters>(initialFilters ?? defaultFilters);
   const [shouldRefetch, setShouldRefetch] = useState(0);
+
+  // Sync initialFilters to filters state when initialFilters changes
+  useEffect(() => {
+    if (initialFilters) {
+      setFiltersState(initialFilters);
+    }
+  }, [initialFilters]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -38,7 +45,12 @@ export const useInventory = (): UseInventoryResult => {
     try {
       const searchParams = new URLSearchParams();
       if (filters.provider) searchParams.append("provider", filters.provider);
-      if (filters.status) searchParams.append("status", filters.status);
+      // If excludeStopped is true and no specific status is selected, exclude stopped instances
+      if (filters.excludeStopped && !filters.status) {
+        searchParams.append("exclude_stopped", "true");
+      } else if (filters.status) {
+        searchParams.append("status", filters.status);
+      }
       if (filters.region) searchParams.append("region", filters.region);
       if (filters.engine) searchParams.append("engine", filters.engine);
       if (filters.version) searchParams.append("version", filters.version);

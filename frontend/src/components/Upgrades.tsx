@@ -26,6 +26,7 @@ import WarningRoundedIcon from "@mui/icons-material/WarningRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import TableChartRoundedIcon from "@mui/icons-material/TableChartRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
+import ClearRoundedIcon from "@mui/icons-material/ClearRounded";
 import { useState, useEffect } from "react";
 import { useUpgrades } from "../hooks/useUpgrades";
 import { DatabaseRecord } from "../types";
@@ -64,8 +65,12 @@ const DEFAULT_COLUMN_WIDTHS = {
   subscription: 180
 };
 
-export const Upgrades = () => {
-  const { data, loading, error, refetch } = useUpgrades();
+interface UpgradesProps {
+  excludeStopped?: boolean;
+}
+
+export const Upgrades = ({ excludeStopped = false }: UpgradesProps) => {
+  const { data, loading, error, refetch } = useUpgrades({ excludeStopped });
   const [filterProvider, setFilterProvider] = useState<string>("all");
   const [filterEngine, setFilterEngine] = useState<string>("all");
   const [filterRegion, setFilterRegion] = useState<string>("all");
@@ -177,6 +182,17 @@ export const Upgrades = () => {
       return true;
     }) || [];
 
+  // Calculate counts from filtered databases
+  const filteredCounts = {
+    total: filteredDatabases.length,
+    postgres: filteredDatabases.filter(db => db.engine.toLowerCase().includes("postgre")).length,
+    mysql: filteredDatabases.filter(db => db.engine.toLowerCase().includes("mysql")).length,
+    mssql: filteredDatabases.filter(db => {
+      const eng = db.engine.toLowerCase();
+      return eng.includes("mssql") || eng.includes("sql server") || eng.includes("sqlserver");
+    }).length
+  };
+
   const handleChangePage = (_event: unknown, newPage: number) => {
     setPage(newPage);
   };
@@ -240,7 +256,7 @@ export const Upgrades = () => {
                 Total
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {loading ? "..." : data?.total || 0}
+                {loading ? "..." : filteredCounts.total}
               </Typography>
             </CardContent>
           </Card>
@@ -262,7 +278,7 @@ export const Upgrades = () => {
                 </Typography>
               </Stack>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {loading ? "..." : data?.by_engine.postgres || 0}
+                {loading ? "..." : filteredCounts.postgres}
               </Typography>
             </CardContent>
           </Card>
@@ -284,7 +300,7 @@ export const Upgrades = () => {
                 </Typography>
               </Stack>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {loading ? "..." : data?.by_engine.mysql || 0}
+                {loading ? "..." : filteredCounts.mysql}
               </Typography>
             </CardContent>
           </Card>
@@ -306,7 +322,7 @@ export const Upgrades = () => {
                 </Typography>
               </Stack>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {loading ? "..." : data?.by_engine.mssql || 0}
+                {loading ? "..." : filteredCounts.mssql}
               </Typography>
             </CardContent>
           </Card>
@@ -390,6 +406,20 @@ export const Upgrades = () => {
             </MenuItem>
           ))}
         </TextField>
+        
+        <Button
+          variant="outlined"
+          startIcon={<ClearRoundedIcon />}
+          onClick={() => {
+            setFilterProvider("all");
+            setFilterEngine("all");
+            setFilterRegion("all");
+            setFilterVersion("all");
+            setFilterSubscription("all");
+          }}
+        >
+          Clear
+        </Button>
         
         <Button
           variant="outlined"

@@ -96,4 +96,23 @@ class AzureVMFilters(BaseModel):
     region: Optional[str] = None
     subscription: Optional[str] = None
     tenant_id: Optional[str] = None
+    status: Optional[str] = None
     search: Optional[str] = None
+
+
+class AWSAccountBase(BaseModel):
+    account_id: str
+    account_name: str
+    business_unit: Optional[str] = None
+    owner: Optional[str] = None
+    account_type_data: Optional[str] = None
+    account_type_function: Optional[str] = None
+    comments: Optional[str] = None
+
+
+class AWSAccountCreate(AWSAccountBase):
+    pass
+
+
+class AWSAccount(AWSAccountBase):
+    pass

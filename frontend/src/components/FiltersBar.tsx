@@ -13,6 +13,7 @@ import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import TableChartRoundedIcon from "@mui/icons-material/TableChartRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
+import ClearRoundedIcon from "@mui/icons-material/ClearRounded";
 import { InventoryFilters, Provider, Status, DatabaseRecord } from "../types";
 import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
@@ -221,6 +222,13 @@ export const FiltersBar = ({ filters, onChange, onRefresh, data = [] }: FiltersB
           </MenuItem>
         ))}
       </TextField>
+      <Button
+        variant="outlined"
+        startIcon={<ClearRoundedIcon />}
+        onClick={() => onChange({ search: "" })}
+      >
+        Clear
+      </Button>
       <Button
         variant="outlined"
         startIcon={<RefreshRoundedIcon />}

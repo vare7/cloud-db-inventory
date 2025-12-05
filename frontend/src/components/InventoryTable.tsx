@@ -268,42 +268,6 @@ export const InventoryTable = ({ rows, loading, onDelete }: InventoryTableProps)
           >
             {purging ? 'Purging…' : 'Purge All'}
           </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<UploadFileIcon />}
-            disabled={uploading || loading}
-            onClick={() => {
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.accept = '.csv,text/csv';
-              input.onchange = async () => {
-                if (!input.files || input.files.length === 0) return;
-                const file = input.files[0];
-                setUploading(true);
-                try {
-                  const form = new FormData();
-                  form.append('file', file);
-                  form.append('provider', 'AWS');
-                  form.append('purge_first', 'true');
-                  await axios.post('/api/databases/import-csv', form, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                  });
-                  setPage(0);
-                  window.location.reload();
-                } catch (e) {
-                  console.error('Failed to import CSV:', e);
-                } finally {
-                  setUploading(false);
-                  input.remove();
-                }
-              };
-              setUploadInput(input);
-              input.click();
-            }}
-          >
-            {uploading ? 'Re-importing…' : 'Purge & Re-import'}
-          </Button>
         </Box>
         <FormControlLabel
           control={

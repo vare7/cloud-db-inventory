@@ -10,7 +10,7 @@ SEED_DATABASES = [
         "endpoint": "rds-prod-1.abcxyz.amazonaws.com",
         "storage_gb": 200,
         "status": DatabaseStatus.available,
-        "subscription": "payments",
+        "subscription": "511610426163",  # ITH-IO account
         "tags": ["prod", "critical"],
         "version": "15.4",
         "azure_tenant": None,
@@ -24,7 +24,7 @@ SEED_DATABASES = [
         "endpoint": "aurora-mysql.cluster-xyz.us-west-2.rds.amazonaws.com",
         "storage_gb": 120,
         "status": DatabaseStatus.maintenance,
-        "subscription": "growth",
+        "subscription": "811731516858",  # buildosith account
         "tags": ["staging"],
         "version": "8.0.mysql_aurora.3.04.0",
         "azure_tenant": None,

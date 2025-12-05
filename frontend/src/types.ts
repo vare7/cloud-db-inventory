@@ -57,6 +57,7 @@ export interface InventoryFilters {
   version?: string;
   subscription?: string;
   search?: string;
+  excludeStopped?: boolean;
 }
 
 

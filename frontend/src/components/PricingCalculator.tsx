@@ -31,6 +31,7 @@ interface PricingData {
   storage_gb: number;
   version: string | null;
   subscription: string;
+  status: string;
   hourly_cost: number;
   monthly_cost: number;
 }
@@ -42,7 +43,11 @@ interface PricingResponse {
   count: number;
 }
 
-export default function PricingCalculator() {
+interface PricingCalculatorProps {
+  excludeStopped?: boolean;
+}
+
+export default function PricingCalculator({ excludeStopped = false }: PricingCalculatorProps) {
   const [data, setData] = useState<PricingResponse | null>(null);
   const [filteredData, setFilteredData] = useState<PricingData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +70,7 @@ export default function PricingCalculator() {
 
   useEffect(() => {
     loadPricing();
-  }, []);
+  }, [excludeStopped]);
 
   useEffect(() => {
     if (data) {
@@ -76,7 +81,7 @@ export default function PricingCalculator() {
   const loadPricing = async () => {
     try {
       setLoading(true);
-      const response = await fetchPricing();
+      const response = await fetchPricing(excludeStopped);
       setData(response);
       setFilteredData(response.databases);
       setError(null);

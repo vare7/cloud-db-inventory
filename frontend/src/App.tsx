@@ -8,6 +8,7 @@ import { StatCards } from "./components/StatCards";
 import { AddDatabaseDrawer } from "./components/AddDatabaseDrawer";
 import { CsvUploadDialog } from "./components/CsvUploadDialog";
 import { AzureVMCsvUploadDialog } from "./components/AzureVMCsvUploadDialog";
+import { AWSAccountCsvUploadDialog } from "./components/AWSAccountCsvUploadDialog";
 import { useInventory } from "./hooks/useInventory";
 import { useAzureVMs } from "./hooks/useAzureVMs";
 import { Dashboard } from "./components/Dashboard";
@@ -21,7 +22,12 @@ function App() {
   const { data: vmData, loading: vmLoading, error: vmError, filters: vmFilters, setFilters: setVMFilters, refetch: refetchVMs, deleteRecord: deleteVM } = useAzureVMs();
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
   const [vmCsvDialogOpen, setVMCsvDialogOpen] = useState(false);
+  const [awsAccountDialogOpen, setAwsAccountDialogOpen] = useState(false);
   const [tab, setTab] = useState(0);
+  const [excludeStopped, setExcludeStopped] = useState<boolean>(() => {
+    const stored = localStorage.getItem("excludeStopped");
+    return stored === null ? false : stored === "true";
+  });
   const [showDashboard, setShowDashboard] = useState<boolean>(() => {
     const stored = localStorage.getItem("showDashboard");
     return stored === null ? true : stored === "true";
@@ -34,6 +40,13 @@ function App() {
     const stored = localStorage.getItem("showPricing");
     return stored === null ? true : stored === "true";
   });
+
+  const toggleExcludeStopped = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
+    setExcludeStopped(checked);
+    localStorage.setItem("excludeStopped", checked ? "true" : "false");
+    // Update filters to apply/remove stopped exclusion
+    setFilters({ ...filters, excludeStopped: checked });
+  };
 
   const toggleDashboard = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
     setShowDashboard(checked);
@@ -64,7 +77,7 @@ function App() {
         <Container maxWidth="xl" sx={{ py: 4 }}>
           <Stack spacing={3}>
             {/* Header */}
-            <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexWrap: "wrap", gap: 2 }}>
               <Box>
                 <Typography variant="h4" sx={{ mb: 0.5 }}>
                   Cloud DB Inventory
@@ -73,26 +86,43 @@ function App() {
                   Manage AWS and Azure database resources
                 </Typography>
               </Box>
-              <Stack direction="row" spacing={2}>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <Button
                   variant="contained"
+                  size="small"
                   startIcon={<CloudUploadRoundedIcon />}
                   onClick={() => setCsvDialogOpen(true)}
                 >
                   Import CSV
                 </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<CloudUploadRoundedIcon />}
+                  onClick={() => setAwsAccountDialogOpen(true)}
+                >
+                  Import AWS Accounts
+                </Button>
                 <AddDatabaseDrawer onCreate={createRecord} />
                 <FormControlLabel
-                  control={<Switch checked={showDashboard} onChange={toggleDashboard} />}
+                  control={<Switch checked={excludeStopped} onChange={toggleExcludeStopped} size="small" />}
+                  label="Exclude Stopped"
+                  sx={{ whiteSpace: "nowrap" }}
+                />
+                <FormControlLabel
+                  control={<Switch checked={showDashboard} onChange={toggleDashboard} size="small" />}
                   label="Dashboard"
+                  sx={{ whiteSpace: "nowrap" }}
                 />
                 <FormControlLabel
-                  control={<Switch checked={showUpgrades} onChange={toggleUpgrades} />}
+                  control={<Switch checked={showUpgrades} onChange={toggleUpgrades} size="small" />}
                   label="Upgrades"
+                  sx={{ whiteSpace: "nowrap" }}
                 />
                 <FormControlLabel
-                  control={<Switch checked={showPricing} onChange={togglePricing} />}
+                  control={<Switch checked={showPricing} onChange={togglePricing} size="small" />}
                   label="Pricing"
+                  sx={{ whiteSpace: "nowrap" }}
                 />
               </Stack>
             </Stack>
@@ -111,7 +141,7 @@ function App() {
             {tab === 0 && (
               <>
                 {/* Stats Cards */}
-                <StatCards stats={stats} />
+                <StatCards stats={stats} excludeStopped={excludeStopped} />
                 {/* Filters */}
                 <FiltersBar filters={filters} onChange={setFilters} onRefresh={refetch} data={data} />
                 {/* Error Alert */}
@@ -161,14 +191,14 @@ function App() {
               let idx = 3;
               return idx;
             })() && (
-              <Upgrades />
+              <Upgrades excludeStopped={excludeStopped} />
             )}
 
             {showPricing && tab === (() => {
               let idx = 4;
               return idx;
             })() && (
-              <PricingCalculator />
+              <PricingCalculator excludeStopped={excludeStopped} />
             )}
           </Stack>
 
@@ -184,6 +214,13 @@ function App() {
             open={vmCsvDialogOpen}
             onClose={() => setVMCsvDialogOpen(false)}
             onSuccess={refetchVMs}
+          />
+
+          {/* AWS Account CSV Upload Dialog */}
+          <AWSAccountCsvUploadDialog
+            open={awsAccountDialogOpen}
+            onClose={() => setAwsAccountDialogOpen(false)}
+            onSuccess={refetch}
           />
         </Container>
       </Box>

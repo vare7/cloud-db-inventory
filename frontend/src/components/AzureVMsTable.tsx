@@ -1,4 +1,4 @@
-import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, TextField, MenuItem, Button, Dialog, DialogTitle, DialogContent, DialogActions, Typography } from "@mui/material";
+import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, TextField, MenuItem, Button, Dialog, DialogTitle, DialogContent, DialogActions, Typography, TablePagination } from "@mui/material";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import { AzureVM } from "../types";
 import { useState, useEffect } from "react";
@@ -18,7 +18,7 @@ export const AzureVMsTable = ({ rows, loading, onDelete }: AzureVMsTableProps) =
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [sortedRows, setSortedRows] = useState<AzureVM[]>([]);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(15);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState<AzureVM | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -205,28 +205,19 @@ export const AzureVMsTable = ({ rows, loading, onDelete }: AzureVMsTableProps) =
         </Table>
       </TableContainer>
 
-      {/* Pagination */}
-      <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="body2" color="text.secondary">
-          Page {page + 1} of {Math.ceil(sortedRows.length / rowsPerPage) || 1}
-        </Typography>
-        <Box>
-          <Button
-            size="small"
-            disabled={page === 0}
-            onClick={() => setPage(page - 1)}
-          >
-            Previous
-          </Button>
-          <Button
-            size="small"
-            disabled={page >= Math.ceil(sortedRows.length / rowsPerPage) - 1}
-            onClick={() => setPage(page + 1)}
-          >
-            Next
-          </Button>
-        </Box>
-      </Box>
+      {/* TablePagination */}
+      <TablePagination
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        component="div"
+        count={sortedRows.length}
+        rowsPerPage={rowsPerPage}
+        page={page}
+        onPageChange={(event, newPage) => setPage(newPage)}
+        onRowsPerPageChange={(event) => {
+          setRowsPerPage(parseInt(event.target.value, 10));
+          setPage(0);
+        }}
+      />
 
       {/* Delete Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>

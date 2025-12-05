@@ -16,10 +16,16 @@ from .schemas import (
     AzureVM,
     AzureVMCreate,
     AzureVMFilters,
+    AWSAccount,
+    AWSAccountCreate,
 )
 from .store import InventoryStore
 from .vm_store import AzureVMStore
 from .vm_csv_parser import parse_azure_vm_csv
+from .aws_account_store import AWSAccountStore
+from .aws_account_parser import parse_aws_account_csv
+# Import models to register them with SQLAlchemy Base
+from .aws_account_models import AWSAccountModel
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -66,6 +72,7 @@ def list_databases(
     version: str | None = None,
     subscription: str | None = None,
     search: str | None = None,
+    exclude_stopped: bool = False,
     db: Session = Depends(get_db),
 ) -> list[DatabaseRecord]:
     filters = InventoryFilters(
@@ -78,7 +85,11 @@ def list_databases(
         search=search,
     )
     store = InventoryStore(db)
-    return store.list(filters)
+    records = store.list(filters)
+    # If exclude_stopped is true, filter out stopped records
+    if exclude_stopped:
+        records = [r for r in records if r.status != DatabaseStatus.stopped]
+    return records
 
 
 @app.post("/api/databases", response_model=DatabaseRecord, status_code=201)
@@ -143,6 +154,7 @@ def get_stats(
     version: Optional[str] = Query(None),
     subscription: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    exclude_stopped: bool = Query(False),
     db: Session = Depends(get_db)
 ) -> StatsResponse:
     store = InventoryStore(db)
@@ -155,21 +167,112 @@ def get_stats(
         subscription=subscription,
         search=search
     )
-    return StatsResponse(**store.stats(filters))
+    stats = store.stats(filters)
+    # If exclude_stopped is true, update stats to exclude stopped records
+    if exclude_stopped:
+        records = store.list(filters)
+        filtered_records = [r for r in records if r.status != DatabaseStatus.stopped]
+        # Recalculate stats from filtered records
+        stats = {
+            "total": len(filtered_records),
+            "by_provider": {},
+            "by_status": {},
+            "storage_gb_total": 0,
+        }
+        for record in filtered_records:
+            stats["storage_gb_total"] += record.storage_gb
+            provider_key = record.provider.value if hasattr(record.provider, 'value') else str(record.provider)
+            stats["by_provider"][provider_key] = stats["by_provider"].get(provider_key, 0) + 1
+            status_key = record.status.value if hasattr(record.status, 'value') else str(record.status)
+            stats["by_status"][status_key] = stats["by_status"].get(status_key, 0) + 1
+    return StatsResponse(**stats)
 
 
 @app.get("/api/metrics", response_model=dict)
-def get_metrics(db: Session = Depends(get_db)) -> dict:
+def get_metrics(exclude_stopped: bool = Query(False), db: Session = Depends(get_db)) -> dict:
     """Dashboard metrics: counts by RDBMS and version breakdown."""
     store = InventoryStore(db)
-    return store.metrics()
+    metrics = store.metrics()
+    
+    # If exclude_stopped is true, filter out stopped records from metrics
+    if exclude_stopped:
+        from sqlalchemy import func as sa_func
+        from .models import DatabaseRecord as DatabaseRecordModel
+        
+        # Get all records and filter out stopped ones
+        query = db.query(DatabaseRecordModel)
+        all_records = query.all()
+        filtered_records = [r for r in all_records if r.status != "stopped"]
+        
+        # Recalculate metrics from filtered records
+        def normalize_engine(name: str) -> str:
+            n = (name or "").lower()
+            if "postgre" in n:
+                return "postgres"
+            if "mysql" in n:
+                return "mysql"
+            if "mssql" in n or "sql server" in n or "sqlserver" in n:
+                return "mssql"
+            return "unknown"
+        
+        rdbms_counts = {"postgres": 0, "mysql": 0, "mssql": 0}
+        version_counts = {"postgres": {}, "mysql": {}, "mssql": {}}
+        
+        for record in filtered_records:
+            engine = normalize_engine(record.engine)
+            if engine in rdbms_counts:
+                rdbms_counts[engine] += 1
+                
+                # Count by version
+                version = record.version or "unknown"
+                if version not in version_counts[engine]:
+                    version_counts[engine][version] = 0
+                version_counts[engine][version] += 1
+        
+        metrics["rdbms_counts"] = rdbms_counts
+        metrics["version_counts"] = version_counts
+    
+    return metrics
 
 
 @app.get("/api/upgrades", response_model=dict)
-def get_upgrades(db: Session = Depends(get_db)) -> dict:
-    """Get databases needing version upgrades."""
+def get_upgrades(
+    provider: Optional[str] = Query(None),
+    engine: Optional[str] = Query(None),
+    version: Optional[str] = Query(None),
+    subscription: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    exclude_stopped: bool = Query(False),
+    db: Session = Depends(get_db)
+) -> dict:
+    """Get databases needing version upgrades with optional filters."""
+    filters = InventoryFilters(
+        provider=DatabaseProvider(provider) if provider else None,
+        engine=engine,
+        version=version,
+        subscription=subscription,
+        status=DatabaseStatus(status) if status else None,
+    )
     store = InventoryStore(db)
-    return store.upgrades_needed()
+    result = store.upgrades_needed(filters)
+    
+    # If exclude_stopped is true, filter out stopped records from results
+    if exclude_stopped:
+        result["databases"] = [r for r in result["databases"] if r.status != DatabaseStatus.stopped]
+        result["total"] = len(result["databases"])
+        
+        # Recalculate by_engine counts
+        result["by_engine"] = {"postgres": 0, "mysql": 0, "mssql": 0}
+        for db_rec in result["databases"]:
+            engine_key = db_rec.engine.lower()
+            if "postgre" in engine_key:
+                result["by_engine"]["postgres"] += 1
+            elif "mysql" in engine_key:
+                result["by_engine"]["mysql"] += 1
+            elif "mssql" in engine_key or "sql server" in engine_key:
+                result["by_engine"]["mssql"] += 1
+    
+    return result
 
 
 @app.get("/api/duplicates", response_model=dict)
@@ -200,10 +303,27 @@ def get_filter_options(
 
 
 @app.get("/api/pricing", response_model=dict)
-def get_pricing(db: Session = Depends(get_db)) -> dict:
+def get_pricing(exclude_stopped: bool = Query(False), db: Session = Depends(get_db)) -> dict:
     """Get pricing estimates for all database instances."""
     store = InventoryStore(db)
-    return store.calculate_pricing()
+    pricing_data = store.calculate_pricing()
+    
+    # If exclude_stopped is true, filter out stopped records
+    if exclude_stopped:
+        pricing_data["databases"] = [
+            db_rec for db_rec in pricing_data["databases"] 
+            if db_rec.get("status") != "stopped"
+        ]
+        
+        # Recalculate totals
+        total_hourly = sum(db_rec.get("hourly_cost", 0) for db_rec in pricing_data["databases"])
+        total_monthly = sum(db_rec.get("monthly_cost", 0) for db_rec in pricing_data["databases"])
+        
+        pricing_data["total_hourly"] = total_hourly
+        pricing_data["total_monthly"] = total_monthly
+        pricing_data["count"] = len(pricing_data["databases"])
+    
+    return pricing_data
 
 
 @app.post("/api/databases/import-csv", response_model=dict)
@@ -398,3 +518,42 @@ def get_tenant_names(db: Session = Depends(get_db)) -> dict:
     from .tenant_mapping import AzureTenantMapping
     mappings = db.query(AzureTenantMapping).all()
     return {mapping.tenant_id: mapping.friendly_name for mapping in mappings}
+
+
+@app.post("/api/aws-accounts/import-csv")
+def import_aws_accounts_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Import AWS accounts from CSV file. Uses upsert to update existing records."""
+    store = AWSAccountStore(db)
+    
+    # Parse and import CSV (upsert mode - updates existing, creates new)
+    try:
+        parsed_accounts = parse_aws_account_csv(file.file)
+        
+        if parsed_accounts:
+            imported_count = store.bulk_upsert(parsed_accounts)
+        else:
+            imported_count = 0
+        
+        return {
+            "message": "Import completed (existing accounts updated)",
+            "imported": imported_count,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"CSV parsing error: {str(e)}")
+
+
+@app.get("/api/aws-account-names")
+def get_aws_account_names(db: Session = Depends(get_db)) -> dict:
+    """Get mapping of AWS account IDs to friendly names."""
+    store = AWSAccountStore(db)
+    return store.get_account_names_map()
+
+
+@app.get("/api/aws-accounts")
+def list_aws_accounts(db: Session = Depends(get_db)) -> list[AWSAccount]:
+    """List all AWS accounts."""
+    store = AWSAccountStore(db)
+    return store.list_all()

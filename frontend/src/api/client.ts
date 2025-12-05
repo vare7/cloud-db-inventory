@@ -24,8 +24,12 @@ export const importCsv = async (file: File, provider: Provider, sync: boolean = 
   return response.data;
 };
 
-export const fetchPricing = async () => {
-  const response = await apiClient.get("/pricing");
+export const fetchPricing = async (excludeStopped: boolean = false) => {
+  const params = new URLSearchParams();
+  if (excludeStopped) {
+    params.append("exclude_stopped", "true");
+  }
+  const response = await apiClient.get(`/pricing?${params.toString()}`);
   return response.data;
 };
 

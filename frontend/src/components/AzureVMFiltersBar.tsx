@@ -1,6 +1,7 @@
 import { Box, Button, MenuItem, TextField } from "@mui/material";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import ClearRoundedIcon from "@mui/icons-material/ClearRounded";
 import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 import axios from "axios";
@@ -9,6 +10,7 @@ interface AzureVMFilters {
   region?: string;
   subscription?: string;
   tenant_id?: string;
+  status?: string;
   search?: string;
 }
 
@@ -22,6 +24,7 @@ interface FilterOptions {
   regions: string[];
   subscriptions: string[];
   tenants: string[];
+  statuses: string[];
 }
 
 export const AzureVMFiltersBar = ({ filters, onChange, onRefresh }: AzureVMFiltersBarProps) => {
@@ -29,6 +32,7 @@ export const AzureVMFiltersBar = ({ filters, onChange, onRefresh }: AzureVMFilte
     regions: [],
     subscriptions: [],
     tenants: [],
+    statuses: [],
   });
   const [tenantNames, setTenantNames] = useState<Record<string, string>>({});
 
@@ -131,6 +135,31 @@ export const AzureVMFiltersBar = ({ filters, onChange, onRefresh }: AzureVMFilte
           </MenuItem>
         ))}
       </TextField>
+
+      <TextField
+        size="small"
+        select
+        label="Status"
+        variant="outlined"
+        value={filters.status || ""}
+        onChange={(e) => onChange({ ...filters, status: e.target.value || undefined })}
+        sx={{ minWidth: 150 }}
+      >
+        <MenuItem value="">All Status</MenuItem>
+        {filterOptions.statuses.map((status) => (
+          <MenuItem key={status} value={status}>
+            {status}
+          </MenuItem>
+        ))}
+      </TextField>
+
+      <Button
+        variant="outlined"
+        startIcon={<ClearRoundedIcon />}
+        onClick={() => onChange({ search: undefined, region: undefined, subscription: undefined, tenant_id: undefined, status: undefined })}
+      >
+        Clear
+      </Button>
 
       <Button
         variant="outlined"
