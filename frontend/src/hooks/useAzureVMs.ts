@@ -7,6 +7,7 @@ interface AzureVMFilters {
   subscription?: string;
   tenant_id?: string;
   status?: string;
+  os_type?: string;
   search?: string;
 }
 
@@ -36,6 +37,7 @@ export const useAzureVMs = (): UseAzureVMsResult => {
       if (filters.subscription) searchParams.append("subscription", filters.subscription);
       if (filters.tenant_id) searchParams.append("tenant_id", filters.tenant_id);
       if (filters.status) searchParams.append("status", filters.status);
+      if (filters.os_type) searchParams.append("os_type", filters.os_type);
       if (filters.search) searchParams.append("search", filters.search);
       
       const response = await apiClient.get(`/azure-vms?${searchParams.toString()}`);

@@ -11,6 +11,7 @@ interface AzureVMFilters {
   subscription?: string;
   tenant_id?: string;
   status?: string;
+  os_type?: string;
   search?: string;
 }
 
@@ -25,6 +26,7 @@ interface FilterOptions {
   subscriptions: string[];
   tenants: string[];
   statuses: string[];
+  os_types: string[];
 }
 
 export const AzureVMFiltersBar = ({ filters, onChange, onRefresh }: AzureVMFiltersBarProps) => {
@@ -33,6 +35,7 @@ export const AzureVMFiltersBar = ({ filters, onChange, onRefresh }: AzureVMFilte
     subscriptions: [],
     tenants: [],
     statuses: [],
+    os_types: [],
   });
   const [tenantNames, setTenantNames] = useState<Record<string, string>>({});
 
@@ -153,10 +156,27 @@ export const AzureVMFiltersBar = ({ filters, onChange, onRefresh }: AzureVMFilte
         ))}
       </TextField>
 
+      <TextField
+        size="small"
+        select
+        label="OS Type"
+        variant="outlined"
+        value={filters.os_type || ""}
+        onChange={(e) => onChange({ ...filters, os_type: e.target.value || undefined })}
+        sx={{ minWidth: 150 }}
+      >
+        <MenuItem value="">All OS Types</MenuItem>
+        {filterOptions.os_types.map((osType) => (
+          <MenuItem key={osType} value={osType}>
+            {osType}
+          </MenuItem>
+        ))}
+      </TextField>
+
       <Button
         variant="outlined"
         startIcon={<ClearRoundedIcon />}
-        onClick={() => onChange({ search: undefined, region: undefined, subscription: undefined, tenant_id: undefined, status: undefined })}
+        onClick={() => onChange({ search: undefined, region: undefined, subscription: undefined, tenant_id: undefined, status: undefined, os_type: undefined })}
       >
         Clear
       </Button>

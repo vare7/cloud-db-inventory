@@ -31,6 +31,10 @@ class AzureVMStore:
             query = query.filter(
                 func.lower(AzureVMModel.display_status) == filters.status.lower()
             )
+        if filters.os_type:
+            query = query.filter(
+                func.lower(AzureVMModel.os_type) == filters.os_type.lower()
+            )
         if filters.search:
             text = filters.search.lower()
             query = query.filter(
@@ -87,12 +91,14 @@ class AzureVMStore:
         subscriptions = self.db.query(AzureVMModel.subscription).distinct().all()
         tenants = self.db.query(AzureVMModel.tenant_id).distinct().all()
         statuses = self.db.query(AzureVMModel.display_status).distinct().all()
+        os_types = self.db.query(AzureVMModel.os_type).distinct().all()
 
         return {
             "regions": [r[0] for r in regions if r[0]],
             "subscriptions": [s[0] for s in subscriptions if s[0]],
             "tenants": [t[0] for t in tenants if t[0]],
             "statuses": sorted([s[0] for s in statuses if s[0]]),
+            "os_types": sorted([o[0] for o in os_types if o[0]]),
         }
 
     def _model_to_schema(self, vm: AzureVMModel) -> AzureVM:

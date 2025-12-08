@@ -97,6 +97,7 @@ class AzureVMFilters(BaseModel):
     subscription: Optional[str] = None
     tenant_id: Optional[str] = None
     status: Optional[str] = None
+    os_type: Optional[str] = None
     search: Optional[str] = None
 
 

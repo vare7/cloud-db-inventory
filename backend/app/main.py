@@ -421,6 +421,8 @@ def list_azure_vms(
     region: Optional[str] = Query(None),
     subscription: Optional[str] = Query(None),
     tenant_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    os_type: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ) -> list[AzureVM]:
@@ -430,6 +432,8 @@ def list_azure_vms(
         region=region,
         subscription=subscription,
         tenant_id=tenant_id,
+        status=status,
+        os_type=os_type,
         search=search,
     )
     return store.list(filters)
