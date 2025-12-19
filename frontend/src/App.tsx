@@ -1,7 +1,9 @@
-import { Alert, Box, Button, Container, Divider, Stack, Typography, ThemeProvider, CssBaseline, Tabs, Tab, Switch, FormControlLabel } from "@mui/material";
+import { Alert, Box, Button, Container, Divider, Stack, Typography, ThemeProvider, CssBaseline, Tabs, Tab, Switch, FormControlLabel, IconButton, Tooltip } from "@mui/material";
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
-import { theme } from "./theme";
-import { useState } from "react";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
+import { lightTheme, darkTheme } from "./theme";
+import { useState, useMemo } from "react";
 import { FiltersBar } from "./components/FiltersBar";
 import { InventoryTable } from "./components/InventoryTable";
 import { StatCards } from "./components/StatCards";
@@ -24,6 +26,10 @@ function App() {
   const [vmCsvDialogOpen, setVMCsvDialogOpen] = useState(false);
   const [awsAccountDialogOpen, setAwsAccountDialogOpen] = useState(false);
   const [tab, setTab] = useState(0);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    const stored = localStorage.getItem("darkMode");
+    return stored === null ? false : stored === "true";
+  });
   const [excludeStopped, setExcludeStopped] = useState<boolean>(() => {
     const stored = localStorage.getItem("excludeStopped");
     return stored === null ? false : stored === "true";
@@ -40,6 +46,14 @@ function App() {
     const stored = localStorage.getItem("showPricing");
     return stored === null ? true : stored === "true";
   });
+
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    localStorage.setItem("darkMode", newMode ? "true" : "false");
+  };
+
+  const currentTheme = useMemo(() => darkMode ? darkTheme : lightTheme, [darkMode]);
 
   const toggleExcludeStopped = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
     setExcludeStopped(checked);
@@ -71,7 +85,7 @@ function App() {
   };
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={currentTheme}>
       <CssBaseline />
       <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
         <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -86,7 +100,12 @@ function App() {
                   Manage AWS and Azure database resources
                 </Typography>
               </Box>
-              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center" }}>
+                <Tooltip title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+                  <IconButton onClick={toggleDarkMode} color="primary" size="small">
+                    {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+                  </IconButton>
+                </Tooltip>
                 <Button
                   variant="contained"
                   size="small"
