@@ -176,9 +176,10 @@ All data is stored in PostgreSQL. CSV imports and manual entries persist across 
 
 ## Documentation
 
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete guide for deploying to a new VM or server
-- **[GIT_SETUP.md](GIT_SETUP.md)** - Complete guide for uploading to Git repositories (GitHub, GitLab, Azure DevOps)
-- **[OPERATIONS.md](OPERATIONS.md)** - Operational guide for starting, stopping, and managing the application
+- **[docs/DOCKER_DOCS_INDEX.md](docs/DOCKER_DOCS_INDEX.md)** - Entry point for Docker and deployment docs
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Complete guide for deploying to a new VM or server
+- **[docs/GIT_SETUP.md](docs/GIT_SETUP.md)** - Complete guide for uploading to Git repositories (GitHub, GitLab, Azure DevOps)
+- **[docs/OPERATIONS.md](docs/OPERATIONS.md)** - Operational guide for starting, stopping, and managing the application
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Guidelines for contributing to the project
 
 ## Features

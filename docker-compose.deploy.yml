@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: avrahul/cloud-db-inventory:postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres   # change for non-dev
+      POSTGRES_DB: cloud_db_inventory
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    image: avrahul/cloud-db-inventory:backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/cloud_db_inventory
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
+
+  frontend:
+    image: avrahul/cloud-db-inventory:frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  pgdata:

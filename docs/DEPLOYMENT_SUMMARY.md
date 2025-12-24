@@ -20,6 +20,7 @@ Your Cloud Database Inventory application has been packaged as production-ready 
 - **DOCKER_IMAGES.md** (8.32 KB) - Docker images and usage guide
 - **docker-compose.yml** (1.41 KB) - Service orchestration configuration
 - **DEPLOYMENT.md** (19.23 KB) - Original deployment documentation
+- **docs/DEPLOY_FROM_DOCKER_HUB.md** - Private Docker Hub pull-and-run steps
 
 ### Deployment Scripts
 - **deploy.sh** (2.35 KB) - Linux/macOS quick start script

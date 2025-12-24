@@ -8,6 +8,33 @@ These steps let you pull the prebuilt frontend, backend, and Postgres images fro
 - Network egress to Docker Hub
 - Docker Hub credentials with access to the private repo
 
+### Installing Docker + Compose (quick refs)
+- **Ubuntu/Debian**
+  ```bash
+  sudo apt-get update
+  sudo apt-get install -y ca-certificates curl gnupg
+  sudo install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  sudo apt-get update
+  sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  sudo usermod -aG docker $USER  # re-login or run: newgrp docker
+  docker --version
+  docker compose version
+  ```
+- **RHEL/CentOS/Rocky**
+  ```bash
+  sudo yum install -y yum-utils
+  sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  sudo systemctl enable --now docker
+  sudo usermod -aG docker $USER  # re-login or run: newgrp docker
+  docker --version
+  docker compose version
+  ```
+- **Windows/macOS**: Install Docker Desktop (includes Compose v2): https://docs.docker.com/desktop/
+  - Verify after install: `docker --version` and `docker compose version`
+
 ## 1) Authenticate to Docker Hub
 ```bash
 docker login

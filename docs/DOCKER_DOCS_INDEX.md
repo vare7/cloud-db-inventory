@@ -11,6 +11,12 @@ Choose your path based on your needs:
 - Common commands
 - Troubleshooting
 
+### 🔒 **I Need Private-Repo Pull Steps** (5 minutes)
+→ **[DEPLOY_FROM_DOCKER_HUB.md](DEPLOY_FROM_DOCKER_HUB.md)**
+- Login to private Docker Hub repo
+- Pull-only compose file with backend/frontend/postgres tags
+- Verification and basic ops
+
 ### 🏗️ **I Want Detailed Setup** (30 minutes)
 → **[DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)**
 - Complete configuration
