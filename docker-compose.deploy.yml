@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: avrahul/cloud-db-inventory:postgres
+    image: vare522/cloud-db-inventory:postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres   # change for non-dev
@@ -11,7 +11,7 @@ services:
       - "5432:5432"
 
   backend:
-    image: avrahul/cloud-db-inventory:backend
+    image: vare522/cloud-db-inventory:backend
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/cloud_db_inventory
     depends_on:
@@ -20,7 +20,7 @@ services:
       - "8000:8000"
 
   frontend:
-    image: avrahul/cloud-db-inventory:frontend
+    image: vare522/cloud-db-inventory:frontend
     depends_on:
       - backend
     ports:
