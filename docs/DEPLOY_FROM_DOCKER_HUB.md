@@ -96,3 +96,10 @@ docker compose -f docker-compose.deploy.yml down
 - The backend seeds sample data if the database is empty; rebuild without seeding if you want a blank DB.
 - Change `POSTGRES_PASSWORD` for any non-dev environment and avoid exposing port 5432 publicly.
 - The Postgres image includes schema only (no user data).
+
+## Common quick fixes
+
+- Backend can’t reach Postgres:
+  - Verify compose env matches: `DATABASE_URL=postgresql://postgres:postgres@postgres:5432/cloud_db_inventory`.
+  - Pull images explicitly: `docker compose -f docker-compose.deploy.yml pull`.
+  - Restart backend after DB is ready: `docker compose -f docker-compose.deploy.yml up -d backend`.
