@@ -16,7 +16,7 @@ export const SqlServerBuilds = () => {
   const [engineFilter, setEngineFilter] = useState<Engine | "all">("all");
   const [versionFilter, setVersionFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [sortColumn, setSortColumn] = useState<SortColumn>("release_date");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("support_end");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -49,7 +49,19 @@ export const SqlServerBuilds = () => {
     const filteredBuilds = useMemo(() => {
       const byEngine = builds.filter((row) => engineFilter === "all" || row.engine === engineFilter);
 
-      return byEngine.filter((build) => {
+      // Deduplicate by version: keep only the latest build per engine+version
+      const deduped = byEngine.reduce((acc, build) => {
+        const key = `${build.engine}|${build.version}`;
+        const existing = acc.get(key);
+        if (!existing || (build.release_date > existing.release_date)) {
+          acc.set(key, build);
+        }
+        return acc;
+      }, new Map<string, BuildInfo>());
+
+      const uniqueBuilds = Array.from(deduped.values());
+
+      return uniqueBuilds.filter((build) => {
         const matchesVersion =
           versionFilter === "all" || `${build.engine} | ${build.version}` === versionFilter;
         const matchesSearch =
@@ -143,7 +155,19 @@ export const SqlServerBuilds = () => {
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   {engines.map((e) => (
-                    <Chip key={e} label={`${e}`} size="small" color="primary" variant="outlined" />
+                    <Chip
+                      key={e}
+                      label={`${e}`}
+                      size="small"
+                      color="primary"
+                      variant={engineFilter === e ? "filled" : "outlined"}
+                      onClick={() => {
+                        setEngineFilter(e);
+                        setVersionFilter("all");
+                        setPage(0);
+                      }}
+                      sx={{ cursor: "pointer" }}
+                    />
                   ))}
                 </Stack>
               </CardContent>
@@ -159,7 +183,13 @@ export const SqlServerBuilds = () => {
                   {engines.map((e) => {
                     const latest = builds
                       .filter((b) => b.engine === e)
-                      .sort((a, b) => (a.release_date < b.release_date ? 1 : -1))[0];
+                      .sort((a, b) => {
+                        // Sort by support_end date (nulls last), then by release_date
+                        const aSupport = a.support_end ? new Date(a.support_end).getTime() : 0;
+                        const bSupport = b.support_end ? new Date(b.support_end).getTime() : 0;
+                        if (aSupport !== bSupport) return bSupport - aSupport;
+                        return (b.release_date || "").localeCompare(a.release_date || "");
+                      })[0];
                     return (
                       <Typography key={e} variant="body2" fontWeight={600}>
                         {e}: {latest?.build_number ?? "N/A"} ({latest?.version ?? ""})
