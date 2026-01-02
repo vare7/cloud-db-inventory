@@ -19,6 +19,7 @@ import { Upgrades } from "./components/Upgrades";
 import PricingCalculator from "./components/PricingCalculator";
 import { AzureVMsTable } from "./components/AzureVMsTable";
 import { AzureVMFiltersBar } from "./components/AzureVMFiltersBar";
+import { SqlServerBuilds } from "./components/SqlServerBuilds";
 
 function App() {
   // Initialize excludeStopped state first so we can use it for useInventory
@@ -65,6 +66,10 @@ function App() {
     const stored = localStorage.getItem("showPricing");
     return stored === null ? true : stored === "true";
   });
+  const [showSqlBuilds, setShowSqlBuilds] = useState<boolean>(() => {
+    const stored = localStorage.getItem("showSqlBuilds");
+    return stored === null ? true : stored === "true";
+  });
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
@@ -100,6 +105,16 @@ function App() {
     if (showDashboard) pricingTabIndex++;
     if (showUpgrades) pricingTabIndex++;
     if (!checked && tab === pricingTabIndex) setTab(0);
+  };
+
+  const toggleSqlBuilds = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
+    setShowSqlBuilds(checked);
+    localStorage.setItem("showSqlBuilds", checked ? "true" : "false");
+    let sqlBuildsTabIndex = 1;
+    if (showDashboard) sqlBuildsTabIndex++;
+    if (showUpgrades) sqlBuildsTabIndex++;
+    if (showPricing) sqlBuildsTabIndex++;
+    if (!checked && tab === sqlBuildsTabIndex) setTab(0);
   };
 
   return (
@@ -161,6 +176,11 @@ function App() {
                   label="Pricing"
                   sx={{ whiteSpace: "nowrap" }}
                 />
+                <FormControlLabel
+                  control={<Switch checked={showSqlBuilds} onChange={toggleSqlBuilds} size="small" />}
+                  label="SQL Builds"
+                  sx={{ whiteSpace: "nowrap" }}
+                />
               </Stack>
             </Stack>
 
@@ -172,6 +192,7 @@ function App() {
                 {showDashboard && <Tab label="Dashboard" />}
                 {showUpgrades && <Tab label="Upgrades" />}
                 {showPricing && <Tab label="Pricing Calculator" />}
+                {showSqlBuilds && <Tab label="SQL Builds" />}
               </Tabs>
             </Box>
 
@@ -236,6 +257,13 @@ function App() {
               return idx;
             })() && (
               <PricingCalculator excludeStopped={excludeStopped} />
+            )}
+
+            {showSqlBuilds && tab === (() => {
+              let idx = 5;
+              return idx;
+            })() && (
+              <SqlServerBuilds />
             )}
           </Stack>
 
