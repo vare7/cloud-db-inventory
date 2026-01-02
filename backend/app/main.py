@@ -18,6 +18,8 @@ from .schemas import (
     AzureVMFilters,
     AWSAccount,
     AWSAccountCreate,
+    BuildInfo,
+    BuildFilters,
 )
 from .store import InventoryStore
 from .vm_store import AzureVMStore
@@ -26,6 +28,8 @@ from .aws_account_store import AWSAccountStore
 from .aws_account_parser import parse_aws_account_csv
 # Import models to register them with SQLAlchemy Base
 from .aws_account_models import AWSAccountModel
+from .models import BuildInfoModel
+from .build_store import BuildStore
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,6 +38,7 @@ async def lifespan(app: FastAPI):
     db = next(get_db())
     try:
         InventoryStore(db).bootstrap()
+        BuildStore(db).bootstrap()
     finally:
         db.close()
     yield
@@ -324,6 +329,18 @@ def get_pricing(exclude_stopped: bool = Query(False), db: Session = Depends(get_
         pricing_data["count"] = len(pricing_data["databases"])
     
     return pricing_data
+
+
+@app.get("/api/builds", response_model=list[BuildInfo])
+def list_builds(
+    engine: Optional[str] = Query(None),
+    version: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+) -> list[BuildInfo]:
+    store = BuildStore(db)
+    filters = BuildFilters(engine=engine, version=version, search=search)
+    return store.list(filters)
 
 
 @app.post("/api/databases/import-csv", response_model=dict)

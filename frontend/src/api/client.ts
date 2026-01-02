@@ -33,3 +33,13 @@ export const fetchPricing = async (excludeStopped: boolean = false) => {
   return response.data;
 };
 
+export const fetchBuilds = async (params: { engine?: string; version?: string; search?: string } = {}) => {
+  const searchParams = new URLSearchParams();
+  if (params.engine) searchParams.append("engine", params.engine);
+  if (params.version) searchParams.append("version", params.version);
+  if (params.search) searchParams.append("search", params.search);
+  const query = searchParams.toString();
+  const response = await apiClient.get(`/builds${query ? `?${query}` : ""}`);
+  return response.data;
+};
+

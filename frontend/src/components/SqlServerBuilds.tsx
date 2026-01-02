@@ -1,367 +1,385 @@
-import {
-  Alert,
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  Grid,
-  Paper,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableSortLabel,
-  TextField,
-  Typography,
-  MenuItem,
-  TablePagination,
-  Link,
-} from "@mui/material";
-import { useState } from "react";
+import { Alert, Box, Card, CardContent, Chip, CircularProgress, Grid, Link, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TableSortLabel, TextField, Typography } from "@mui/material";
 import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
+import { useEffect, useMemo, useState } from "react";
 
-interface SqlBuild {
-  version: string;
-  buildNumber: string;
-  releaseDate: string;
-  servicePackLevel: string;
-  cumulativeUpdate: string;
-  kb: string;
-  supportEnd: string;
-  maintenanceEnd: string;
-}
+import { fetchBuilds } from "../api/client";
+import { BuildInfo } from "../types";
 
-const sqlServerBuilds: SqlBuild[] = [
-  {
-    version: "SQL Server 2022",
-    buildNumber: "16.0.4095.4",
-    releaseDate: "2024-09-12",
-    servicePackLevel: "RTM",
-    cumulativeUpdate: "CU14",
-    kb: "5038325",
-    supportEnd: "2028-01-11",
-    maintenanceEnd: "2033-01-11",
-  },
-  {
-    version: "SQL Server 2022",
-    buildNumber: "16.0.4085.2",
-    releaseDate: "2024-08-14",
-    servicePackLevel: "RTM",
-    cumulativeUpdate: "CU13",
-    kb: "5036432",
-    supportEnd: "2028-01-11",
-    maintenanceEnd: "2033-01-11",
-  },
-  {
-    version: "SQL Server 2019",
-    buildNumber: "15.0.4375.4",
-    releaseDate: "2024-09-12",
-    servicePackLevel: "RTM",
-    cumulativeUpdate: "CU28",
-    kb: "5038325",
-    supportEnd: "2025-02-28",
-    maintenanceEnd: "2030-01-08",
-  },
-  {
-    version: "SQL Server 2019",
-    buildNumber: "15.0.4365.2",
-    releaseDate: "2024-08-14",
-    servicePackLevel: "RTM",
-    cumulativeUpdate: "CU27",
-    kb: "5037331",
-    supportEnd: "2025-02-28",
-    maintenanceEnd: "2030-01-08",
-  },
-  {
-    version: "SQL Server 2017",
-    buildNumber: "14.0.3465.1",
-    releaseDate: "2024-01-11",
-    servicePackLevel: "RTM",
-    cumulativeUpdate: "CU31 GDR",
-    kb: "5029376",
-    supportEnd: "2022-10-11",
-    maintenanceEnd: "2027-10-12",
-  },
-  {
-    version: "SQL Server 2016",
-    buildNumber: "13.0.7037.1",
-    releaseDate: "2024-01-09",
-    servicePackLevel: "SP3",
-    cumulativeUpdate: "CU17 GDR",
-    kb: "5029186",
-    supportEnd: "2021-07-13",
-    maintenanceEnd: "2026-07-14",
-  },
-  {
-    version: "SQL Server 2014",
-    buildNumber: "12.0.6449.1",
-    releaseDate: "2024-02-13",
-    servicePackLevel: "SP3",
-    cumulativeUpdate: "CU4 GDR",
-    kb: "5032968",
-    supportEnd: "2019-07-09",
-    maintenanceEnd: "2024-07-09",
-  },
-];
-
-type SortColumn = keyof SqlBuild;
+type Engine = "SQL Server" | "PostgreSQL" | "MySQL";
+type SortColumn = keyof BuildInfo;
 type SortDirection = "asc" | "desc";
 
 export const SqlServerBuilds = () => {
+  const [builds, setBuilds] = useState<BuildInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [engineFilter, setEngineFilter] = useState<Engine | "all">("all");
   const [versionFilter, setVersionFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [sortColumn, setSortColumn] = useState<SortColumn>("releaseDate");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("release_date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const uniqueVersions = Array.from(new Set(sqlServerBuilds.map((b) => b.version)));
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data: BuildInfo[] = await fetchBuilds();
+        setBuilds(data);
+      } catch (err) {
+        console.error("Failed to load build catalog", err);
+        setError("Failed to load build catalog. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const filteredBuilds = sqlServerBuilds.filter((build) => {
-    const matchesVersion = versionFilter === "all" || build.version === versionFilter;
-    const matchesSearch =
-      !searchQuery ||
-      Object.values(build).some((val) =>
-        val.toString().toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    return matchesVersion && matchesSearch;
-  });
+    load();
+  }, []);
 
-  const sortedBuilds = [...filteredBuilds].sort((a, b) => {
-    const aVal = a[sortColumn];
-    const bVal = b[sortColumn];
-    const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-    return sortDirection === "asc" ? comparison : -comparison;
-  });
+    const engines: Engine[] = useMemo(() => {
+      if (builds.length === 0) {
+        return ["SQL Server", "PostgreSQL", "MySQL"] as Engine[];
+      }
+      return Array.from(new Set(builds.map((b) => b.engine))) as Engine[];
+    }, [builds]);
 
-  const paginatedBuilds = sortedBuilds.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
+    const filteredBuilds = useMemo(() => {
+      const byEngine = builds.filter((row) => engineFilter === "all" || row.engine === engineFilter);
 
-  const handleSort = (column: SortColumn) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  };
+      return byEngine.filter((build) => {
+        const matchesVersion =
+          versionFilter === "all" || `${build.engine} | ${build.version}` === versionFilter;
+        const matchesSearch =
+          !searchQuery ||
+          Object.values(build).some((val) => val?.toString().toLowerCase().includes(searchQuery.toLowerCase()));
+        return matchesVersion && matchesSearch;
+      });
+    }, [builds, engineFilter, searchQuery, versionFilter]);
 
-  const isExpiredSupport = (supportEnd: string) => {
-    return new Date(supportEnd) < new Date();
-  };
+    const uniqueVersions = useMemo(
+      () => Array.from(new Set(filteredBuilds.map((b) => `${b.engine} | ${b.version}`))),
+      [filteredBuilds]
+    );
 
-  const isExpiredMaintenance = (maintenanceEnd: string) => {
-    return new Date(maintenanceEnd) < new Date();
-  };
+    const sortedBuilds = useMemo(() => {
+      const sorted = [...filteredBuilds].sort((a, b) => {
+        const aVal = (a as unknown as Record<string, unknown>)[sortColumn] ?? "";
+        const bVal = (b as unknown as Record<string, unknown>)[sortColumn] ?? "";
+        const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+        return sortDirection === "asc" ? comparison : -comparison;
+      });
+      return sorted;
+    }, [filteredBuilds, sortColumn, sortDirection]);
 
-  return (
-    <Stack spacing={3}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Stack direction="row" spacing={2} alignItems="center">
-          <InfoRoundedIcon fontSize="large" sx={{ color: "#2563eb" }} />
-          <Typography variant="h5">SQL Server Builds Reference</Typography>
+    const paginatedBuilds = useMemo(
+      () => sortedBuilds.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+      [sortedBuilds, page, rowsPerPage]
+    );
+
+    const handleSort = (column: SortColumn) => {
+      if (sortColumn === column) {
+        setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+      } else {
+        setSortColumn(column);
+        setSortDirection("asc");
+      }
+    };
+
+    const isExpiredSupport = (supportEnd?: string | null) => {
+      if (!supportEnd) return false;
+      return new Date(supportEnd) < new Date();
+    };
+
+    const isExpiredMaintenance = (maintenanceEnd?: string | null) => {
+      if (!maintenanceEnd) return false;
+      return new Date(maintenanceEnd) < new Date();
+    };
+
+    return (
+      <Stack spacing={3}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack direction="row" spacing={2} alignItems="center">
+            <InfoRoundedIcon fontSize="large" sx={{ color: "#2563eb" }} />
+            <Typography variant="h5">Database Engine Builds Reference</Typography>
+          </Stack>
         </Stack>
-      </Stack>
 
-      <Alert severity="info">
-        Track SQL Server versions, build numbers, cumulative updates, and support lifecycle
-        information. Similar to{" "}
-        <Link href="https://sqlserverbuilds.blogspot.com/" target="_blank" rel="noopener">
-          sqlserverbuilds.blogspot.com
-        </Link>
-      </Alert>
+        <Alert severity="info">
+          Track build numbers, cumulative updates/patches, and support lifecycle for SQL Server, PostgreSQL, and MySQL.
+          Sources: Microsoft KBs, PostgreSQL release notes, MySQL release notes.
+        </Alert>
 
-      {/* Summary Cards */}
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Total Builds Tracked
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {sqlServerBuilds.length}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                SQL Server Versions
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {uniqueVersions.length}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Latest Build
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                {sqlServerBuilds[0]?.buildNumber || "N/A"}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {sqlServerBuilds[0]?.version}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+        {error && <Alert severity="error">{error}</Alert>}
+        {loading && builds.length === 0 && (
+          <Stack direction="row" spacing={1} alignItems="center">
+            <CircularProgress size={20} />
+            <Typography variant="body2" color="text.secondary">
+              Loading build catalog...
+            </Typography>
+          </Stack>
+        )}
 
-      {/* Filters */}
-      <Paper sx={{ p: 2 }}>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              select
-              fullWidth
-              label="Version"
-              value={versionFilter}
-              onChange={(e) => setVersionFilter(e.target.value)}
-              size="small"
-            >
-              <MenuItem value="all">All Versions</MenuItem>
-              {uniqueVersions.map((version) => (
-                <MenuItem key={version} value={version}>
-                  {version}
-                </MenuItem>
-              ))}
-            </TextField>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Total Builds Tracked
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                  {loading ? "..." : builds.length}
+                </Typography>
+              </CardContent>
+            </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={9}>
-            <TextField
-              fullWidth
-              label="Search"
-              placeholder="Search build number, KB, CU..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              size="small"
-            />
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Engine Coverage
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {engines.map((e) => (
+                    <Chip key={e} label={`${e}`} size="small" color="primary" variant="outlined" />
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Latest Build (per engine)
+                </Typography>
+                <Stack spacing={0.5}>
+                  {engines.map((e) => {
+                    const latest = builds
+                      .filter((b) => b.engine === e)
+                      .sort((a, b) => (a.release_date < b.release_date ? 1 : -1))[0];
+                    return (
+                      <Typography key={e} variant="body2" fontWeight={600}>
+                        {e}: {latest?.build_number ?? "N/A"} ({latest?.version ?? ""})
+                      </Typography>
+                    );
+                  })}
+                </Stack>
+              </CardContent>
+            </Card>
           </Grid>
         </Grid>
-      </Paper>
 
-      {/* Builds Table */}
-      <Paper>
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortColumn === "version"}
-                    direction={sortColumn === "version" ? sortDirection : "asc"}
-                    onClick={() => handleSort("version")}
-                  >
-                    Version
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortColumn === "buildNumber"}
-                    direction={sortColumn === "buildNumber" ? sortDirection : "asc"}
-                    onClick={() => handleSort("buildNumber")}
-                  >
-                    Build Number
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortColumn === "releaseDate"}
-                    direction={sortColumn === "releaseDate" ? sortDirection : "asc"}
-                    onClick={() => handleSort("releaseDate")}
-                  >
-                    Release Date
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>SP Level</TableCell>
-                <TableCell>Cumulative Update</TableCell>
-                <TableCell>KB Article</TableCell>
-                <TableCell>Support End</TableCell>
-                <TableCell>Maintenance End</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {paginatedBuilds.map((build, idx) => (
-                <TableRow key={idx} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight="medium">
-                      {build.version}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontFamily="monospace">
-                      {build.buildNumber}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{build.releaseDate}</TableCell>
-                  <TableCell>
-                    <Chip label={build.servicePackLevel} size="small" />
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={build.cumulativeUpdate} size="small" color="primary" />
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`https://support.microsoft.com/en-us/help/${build.kb}`}
-                      target="_blank"
-                      rel="noopener"
-                    >
-                      {build.kb}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={build.supportEnd}
-                      size="small"
-                      color={isExpiredSupport(build.supportEnd) ? "error" : "success"}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={build.maintenanceEnd}
-                      size="small"
-                      color={isExpiredMaintenance(build.maintenanceEnd) ? "warning" : "success"}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-              {paginatedBuilds.length === 0 && (
+        <Paper sx={{ p: 2 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                select
+                fullWidth
+                label="Engine"
+                value={engineFilter}
+                onChange={(e) => {
+                  setEngineFilter(e.target.value as Engine | "all");
+                  setVersionFilter("all");
+                  setPage(0);
+                }}
+                size="small"
+              >
+                <MenuItem value="all">All Engines</MenuItem>
+                {engines.map((engine) => (
+                  <MenuItem key={engine} value={engine}>
+                    {engine}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                select
+                fullWidth
+                label="Version"
+                value={versionFilter}
+                onChange={(e) => {
+                  setVersionFilter(e.target.value);
+                  setPage(0);
+                }}
+                size="small"
+              >
+                <MenuItem value="all">All Versions</MenuItem>
+                {uniqueVersions.map((version) => (
+                  <MenuItem key={version} value={version}>
+                    {version.split(" | ")[1]}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={12} md={6}>
+              <TextField
+                fullWidth
+                label="Search"
+                placeholder="Search build number, KB/Notes, CU/patch..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(0);
+                }}
+                size="small"
+              />
+            </Grid>
+          </Grid>
+        </Paper>
+
+        <Paper>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    <Typography color="textSecondary" py={4}>
-                      No builds found matching the filters
-                    </Typography>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === "engine"}
+                      direction={sortColumn === "engine" ? sortDirection : "asc"}
+                      onClick={() => handleSort("engine")}
+                    >
+                      Engine
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === "version"}
+                      direction={sortColumn === "version" ? sortDirection : "asc"}
+                      onClick={() => handleSort("version")}
+                    >
+                      Version
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === "build_number"}
+                      direction={sortColumn === "build_number" ? sortDirection : "asc"}
+                      onClick={() => handleSort("build_number")}
+                    >
+                      Build Number
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === "release_date"}
+                      direction={sortColumn === "release_date" ? sortDirection : "asc"}
+                      onClick={() => handleSort("release_date")}
+                    >
+                      Release Date
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === "update"}
+                      direction={sortColumn === "update" ? sortDirection : "asc"}
+                      onClick={() => handleSort("update")}
+                    >
+                      Update / Patch
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === "doc_label"}
+                      direction={sortColumn === "doc_label" ? sortDirection : "asc"}
+                      onClick={() => handleSort("doc_label")}
+                    >
+                      Docs
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === "support_end"}
+                      direction={sortColumn === "support_end" ? sortDirection : "asc"}
+                      onClick={() => handleSort("support_end")}
+                    >
+                      Support End
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === "maintenance_end"}
+                      direction={sortColumn === "maintenance_end" ? sortDirection : "asc"}
+                      onClick={() => handleSort("maintenance_end")}
+                    >
+                      Maintenance End
+                    </TableSortLabel>
                   </TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <TablePagination
-          component="div"
-          count={sortedBuilds.length}
-          page={page}
-          onPageChange={(_, newPage) => setPage(newPage)}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(parseInt(e.target.value, 10));
-            setPage(0);
-          }}
-          rowsPerPageOptions={[5, 10, 25, 50]}
-        />
-      </Paper>
-    </Stack>
-  );
-};
+              </TableHead>
+              <TableBody>
+                {paginatedBuilds.map((build) => (
+                  <TableRow key={build.id} hover>
+                    <TableCell>
+                      <Chip label={build.engine} size="small" color="primary" variant="outlined" />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="medium">
+                        {build.version}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontFamily="monospace">
+                        {build.build_number}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{build.release_date}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={build.update || "—"}
+                        size="small"
+                        color={build.update ? "primary" : "default"}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Link href={build.doc_url} target="_blank" rel="noopener">
+                        {build.doc_label}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={build.support_end ?? "—"}
+                        size="small"
+                        color={isExpiredSupport(build.support_end) ? "error" : "success"}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={build.maintenance_end ?? "—"}
+                        size="small"
+                        color={isExpiredMaintenance(build.maintenance_end) ? "warning" : "success"}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {paginatedBuilds.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center">
+                      <Typography color="textSecondary" py={4}>
+                        No builds found matching the filters
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            component="div"
+            count={sortedBuilds.length}
+            page={page}
+            onPageChange={(_, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[5, 10, 25, 50]}
+          />
+        </Paper>
+      </Stack>
+    );
+  };

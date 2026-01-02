@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Enum as SQLEnum, ARRAY
+from sqlalchemy import Column, String, Integer, Enum as SQLEnum, ARRAY, Date
 import uuid
 from .database import Base
 from .schemas import DatabaseProvider, DatabaseStatus
@@ -28,4 +28,19 @@ class DatabaseRecordModel(Base):
     replica = Column(String, nullable=True)
     backup_retention_days = Column(String, nullable=True)
     geo_redundant_backup = Column(String, nullable=True)
+
+
+class BuildInfoModel(Base):
+    __tablename__ = "build_catalog"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    engine = Column(String, nullable=False)
+    version = Column(String, nullable=False)
+    build_number = Column(String, nullable=False)
+    release_date = Column(Date, nullable=False)
+    update_label = Column(String, nullable=True)
+    doc_label = Column(String, nullable=False)
+    doc_url = Column(String, nullable=False)
+    support_end = Column(Date, nullable=True)
+    maintenance_end = Column(Date, nullable=True)
 

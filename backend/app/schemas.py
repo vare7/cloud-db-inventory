@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 from pydantic import BaseModel, Field
 
@@ -54,6 +54,28 @@ class StatsResponse(BaseModel):
     by_provider: dict
     by_status: dict
     storage_gb_total: int
+
+
+class BuildInfoBase(BaseModel):
+    engine: str
+    version: str
+    build_number: str
+    release_date: date
+    update: str | None = None
+    doc_label: str
+    doc_url: str
+    support_end: date | None = None
+    maintenance_end: date | None = None
+
+
+class BuildInfo(BuildInfoBase):
+    id: str
+
+
+class BuildFilters(BaseModel):
+    engine: str | None = None
+    version: str | None = None
+    search: str | None = None
 
 
 class InventoryFilters(BaseModel):

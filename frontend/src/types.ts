@@ -49,6 +49,19 @@ export interface StatsSummary {
   by_status: Record<Status, number>;
 }
 
+export interface BuildInfo {
+  id: string;
+  engine: string;
+  version: string;
+  build_number: string;
+  release_date: string;
+  update?: string | null;
+  doc_label: string;
+  doc_url: string;
+  support_end?: string | null;
+  maintenance_end?: string | null;
+}
+
 export interface InventoryFilters {
   provider?: Provider | "";
   status?: Status | "";

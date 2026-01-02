@@ -35,6 +35,11 @@ def get_db():
 
 def init_db():
     """Initialize database tables and ensure new columns exist."""
+    # Import models to register them with Base before creating tables
+    from .models import DatabaseRecordModel, BuildInfoModel
+    from .vm_models import AzureVMModel
+    from .aws_account_models import AWSAccountModel
+    
     Base.metadata.create_all(bind=engine)
     # Ensure newly added nullable columns exist on existing deployments
     try:
