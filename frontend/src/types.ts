@@ -50,7 +50,7 @@ export interface StatsSummary {
 }
 
 export interface BuildInfo {
-  id: string;
+  id: number;
   engine: string;
   version: string;
   build_number: string;

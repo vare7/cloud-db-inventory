@@ -69,7 +69,7 @@ class BuildInfoBase(BaseModel):
 
 
 class BuildInfo(BuildInfoBase):
-    id: str
+    id: int
 
 
 class BuildFilters(BaseModel):
