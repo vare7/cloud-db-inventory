@@ -180,6 +180,36 @@ SEED_BUILD_CATALOG = [
         "doc_url": "https://www.postgresql.org/docs/release/14.20/",
         "support_end": "2026-11-12",
     },
+    {
+        "engine": "PostgreSQL",
+        "version": "PostgreSQL 13",
+        "build_number": "13.20",
+        "release_date": "2025-11-10",
+        "update": "13.20",
+        "doc_label": "Release 13.20",
+        "doc_url": "https://www.postgresql.org/docs/release/13.20/",
+        "support_end": "2025-11-13",
+    },
+    {
+        "engine": "PostgreSQL",
+        "version": "PostgreSQL 12",
+        "build_number": "12.23",
+        "release_date": "2025-11-10",
+        "update": "12.23",
+        "doc_label": "Release 12.23",
+        "doc_url": "https://www.postgresql.org/docs/release/12.23/",
+        "support_end": "2024-11-21",
+    },
+    {
+        "engine": "PostgreSQL",
+        "version": "PostgreSQL 11",
+        "build_number": "11.25",
+        "release_date": "2025-11-10",
+        "update": "11.25",
+        "doc_label": "Release 11.25",
+        "doc_url": "https://www.postgresql.org/docs/release/11.25/",
+        "support_end": "2023-11-09",
+    },
 
     # MySQL
     {
@@ -211,6 +241,28 @@ SEED_BUILD_CATALOG = [
         "doc_label": "MySQL 5.7 GA",
         "doc_url": "https://docs.oracle.com/en-us/iaas/mysql-database/doc/mysql-server-versions.html#MYAAS-GUID-BA832E37-B752-42AA-890A-2ACAD44B2F6C",
         "support_end": "2023-10-31",
+    },
+
+    # MongoDB
+    {
+        "engine": "MongoDB",
+        "version": "MongoDB 8.0",
+        "build_number": "8.0",
+        "release_date": "2024-11-12",
+        "update": "8.0 GA",
+        "doc_label": "MongoDB 8.0",
+        "doc_url": "https://www.mongodb.com/docs/manual/release-notes/8.0/",
+        "support_end": "2029-10-31",
+    },
+    {
+        "engine": "MongoDB",
+        "version": "MongoDB 7.0",
+        "build_number": "7.0",
+        "release_date": "2023-08-08",
+        "update": "7.0 GA",
+        "doc_label": "MongoDB 7.0",
+        "doc_url": "https://www.mongodb.com/docs/manual/release-notes/7.0/",
+        "support_end": "2027-08-31",
     },
 ]
 
