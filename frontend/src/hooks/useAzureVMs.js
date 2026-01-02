@@ -19,6 +19,8 @@ export const useAzureVMs = () => {
                 searchParams.append("tenant_id", filters.tenant_id);
             if (filters.status)
                 searchParams.append("status", filters.status);
+            if (filters.os_type)
+                searchParams.append("os_type", filters.os_type);
             if (filters.search)
                 searchParams.append("search", filters.search);
             const response = await apiClient.get(`/azure-vms?${searchParams.toString()}`);

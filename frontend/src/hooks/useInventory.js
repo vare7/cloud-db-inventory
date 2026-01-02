@@ -7,7 +7,8 @@ const defaultFilters = {
     engine: "",
     version: "",
     subscription: "",
-    search: ""
+    search: "",
+    excludeStopped: false
 };
 export const useInventory = (initialFilters) => {
     const [data, setData] = useState([]);

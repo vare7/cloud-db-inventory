@@ -3,7 +3,7 @@ import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import { lightTheme, darkTheme } from "./theme";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { FiltersBar } from "./components/FiltersBar";
 import { InventoryTable } from "./components/InventoryTable";
 import { StatCards } from "./components/StatCards";
@@ -13,6 +13,7 @@ import { AzureVMCsvUploadDialog } from "./components/AzureVMCsvUploadDialog";
 import { AWSAccountCsvUploadDialog } from "./components/AWSAccountCsvUploadDialog";
 import { useInventory } from "./hooks/useInventory";
 import { useAzureVMs } from "./hooks/useAzureVMs";
+import { InventoryFilters } from "./types";
 import { Dashboard } from "./components/Dashboard";
 import { Upgrades } from "./components/Upgrades";
 import PricingCalculator from "./components/PricingCalculator";
@@ -20,7 +21,29 @@ import { AzureVMsTable } from "./components/AzureVMsTable";
 import { AzureVMFiltersBar } from "./components/AzureVMFiltersBar";
 
 function App() {
-  const { data, stats, loading, error, filters, setFilters, refetch, createRecord, deleteRecord } = useInventory();
+  // Initialize excludeStopped state first so we can use it for useInventory
+  const [excludeStopped, setExcludeStopped] = useState<boolean>(() => {
+    const stored = localStorage.getItem("excludeStopped");
+    const value = stored === null ? false : stored === "true";
+    console.log("[App] Initializing excludeStopped from localStorage:", value);
+    return value;
+  });
+  
+  // Pass excludeStopped to useInventory initial filters
+  const initialInventoryFilters: InventoryFilters = {
+    provider: "",
+    status: "",
+    region: "",
+    engine: "",
+    version: "",
+    subscription: "",
+    search: "",
+    excludeStopped: excludeStopped
+  };
+  console.log("[App] Passing initialFilters to useInventory:", initialInventoryFilters);
+  
+  const { data, stats, loading, error, filters, setFilters, refetch, createRecord, deleteRecord } = useInventory(initialInventoryFilters);
+  
   const { data: vmData, loading: vmLoading, error: vmError, filters: vmFilters, setFilters: setVMFilters, refetch: refetchVMs, deleteRecord: deleteVM } = useAzureVMs();
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
   const [vmCsvDialogOpen, setVMCsvDialogOpen] = useState(false);
@@ -28,10 +51,6 @@ function App() {
   const [tab, setTab] = useState(0);
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const stored = localStorage.getItem("darkMode");
-    return stored === null ? false : stored === "true";
-  });
-  const [excludeStopped, setExcludeStopped] = useState<boolean>(() => {
-    const stored = localStorage.getItem("excludeStopped");
     return stored === null ? false : stored === "true";
   });
   const [showDashboard, setShowDashboard] = useState<boolean>(() => {
@@ -58,7 +77,6 @@ function App() {
   const toggleExcludeStopped = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
     setExcludeStopped(checked);
     localStorage.setItem("excludeStopped", checked ? "true" : "false");
-    // Update filters to apply/remove stopped exclusion
     setFilters({ ...filters, excludeStopped: checked });
   };
 

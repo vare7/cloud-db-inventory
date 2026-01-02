@@ -21,7 +21,8 @@ const defaultFilters: InventoryFilters = {
   engine: "",
   version: "",
   subscription: "",
-  search: ""
+  search: "",
+  excludeStopped: false
 };
 
 export const useInventory = (initialFilters?: InventoryFilters): UseInventoryResult => {
@@ -29,15 +30,12 @@ export const useInventory = (initialFilters?: InventoryFilters): UseInventoryRes
   const [stats, setStats] = useState<StatsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFiltersState] = useState<InventoryFilters>(initialFilters ?? defaultFilters);
+  const [filters, setFiltersState] = useState<InventoryFilters>(() => {
+    const initial = initialFilters ? { ...initialFilters } : defaultFilters;
+    console.log("[useInventory] Initializing with filters:", initial);
+    return initial;
+  });
   const [shouldRefetch, setShouldRefetch] = useState(0);
-
-  // Sync initialFilters to filters state when initialFilters changes
-  useEffect(() => {
-    if (initialFilters) {
-      setFiltersState(initialFilters);
-    }
-  }, [initialFilters]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -47,6 +45,7 @@ export const useInventory = (initialFilters?: InventoryFilters): UseInventoryRes
       if (filters.provider) searchParams.append("provider", filters.provider);
       // If excludeStopped is true and no specific status is selected, exclude stopped instances
       if (filters.excludeStopped && !filters.status) {
+        console.log("[useInventory] Applying exclude_stopped filter");
         searchParams.append("exclude_stopped", "true");
       } else if (filters.status) {
         searchParams.append("status", filters.status);
@@ -56,6 +55,7 @@ export const useInventory = (initialFilters?: InventoryFilters): UseInventoryRes
       if (filters.version) searchParams.append("version", filters.version);
       if (filters.subscription) searchParams.append("subscription", filters.subscription);
       if (filters.search) searchParams.append("search", filters.search);
+      console.log("[useInventory] Fetching with params:", searchParams.toString());
       const [inventoryRes, statsRes] = await Promise.all([
         apiClient.get(`/databases?${searchParams.toString()}`),
         apiClient.get(`/stats?${searchParams.toString()}`)

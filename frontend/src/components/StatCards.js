@@ -18,8 +18,19 @@ const placeholder = {
         warning: 0
     }
 };
-export const StatCards = ({ stats }) => {
+export const StatCards = ({ stats, excludeStopped }) => {
     const data = stats ?? placeholder;
+    // Calculate health differently based on excludeStopped flag
+    let healthValue = 0;
+    if (excludeStopped) {
+        // When excluding stopped, health = available / (total - stopped)
+        const activeTotal = data.total - (data.by_status.stopped || 0);
+        healthValue = activeTotal ? Math.round(((data.by_status.available + (data.by_status.ready || 0)) / activeTotal) * 100) : 0;
+    }
+    else {
+        // When not excluding stopped, health = available / total (including stopped)
+        healthValue = data.total ? Math.round(((data.by_status.available + (data.by_status.ready || 0)) / data.total) * 100) : 0;
+    }
     const cards = [
         {
             title: "Total Databases",
@@ -35,7 +46,7 @@ export const StatCards = ({ stats }) => {
         },
         {
             title: "Healthy (%)",
-            value: data.total ? Math.round(((data.by_status.available + data.by_status.ready) / data.total) * 100) : 0,
+            value: healthValue,
             color: "#10b981", // green
             icon: _jsx(HealthAndSafetyRoundedIcon, { fontSize: "large", sx: { color: "#ffffff" } })
         }
