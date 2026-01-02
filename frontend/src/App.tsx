@@ -24,7 +24,7 @@ function App() {
   // Initialize excludeStopped state first so we can use it for useInventory
   const [excludeStopped, setExcludeStopped] = useState<boolean>(() => {
     const stored = localStorage.getItem("excludeStopped");
-    const value = stored === null ? false : stored === "true";
+    const value = stored === null ? true : stored === "true";
     console.log("[App] Initializing excludeStopped from localStorage:", value);
     return value;
   });
